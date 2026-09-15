@@ -104,13 +104,17 @@
 
 /// The available inline mark shapes.
 #let MARKS = ("highlight", "underline", "double", "wave", "circle", "box",
-  "strike", "scribble", "bracket", "jagged", "fan")
+  "strike", "scribble", "bracket", "jagged", "fan", "formula", "text", "hand")
 
 /// A hand-drawn mark on a run of inline text.
 ///
 ///   #mark[important]                      a highlighter swipe
 ///   #mark(kind: "circle")[this bit]       a loose ring round the words
 ///   #mark(kind: "wave", colour: blue)[..] a wavy rule underneath
+///
+/// On a run that breaks over several lines the hand-drawn canvas cannot
+/// follow the text; `mark` then falls back to the native per-line
+/// elements (`highlight`, `underline`, `strike`) so every line is covered.
 ///
 /// jotter draws its emphasis as a fat translucent `underline`; this keeps
 /// that idea and adds the shapes a marker pen actually makes. The geometry is
@@ -128,6 +132,7 @@
   opacity: auto,
   reserve: auto,
 ) = context {
+
   let hd = _hand(rough, hand)
   let col = if colour != auto { colour } else { rgb("#FFF421") }
   let m = measure(body)
@@ -185,11 +190,52 @@
   }
   let sp = ex + og * 1cm                      // white space kept on each side
 
+  // ---- multi-line bodies ---------------------------------------------------
+  // The hand-drawn canvas is ONE inline box: it cannot follow the text
+  // across line breaks. When the measured body runs over more than one
+  // line, fall back to the native per-line elements so the mark still
+  // covers every line of the run.
+  // `measure` returns the run's NATURAL size, so a run that will wrap is
+  // spotted by comparing that width against the line's budget, read off
+  // the page styles (nested containers keep the canvas, as before).
+  let mg = page.margin
+  let len(x) = if type(x) == length { x } else { 1.5cm }
+  let ml = len(if type(mg) == dictionary { mg.at("left", default: 1.5cm) } else { mg })
+  let mr = len(if type(mg) == dictionary { mg.at("right", default: 1.5cm) } else { mg })
+  if m.width + 2 * ex > page.width - ml - mr {
+    let sw = if weight != auto { _cm(weight) } else { 1.2pt }
+    if kind == "highlight" or kind == "scribble" {
+      return highlight(fill: col.transparentize(
+        if kind == "highlight" { alpha } else { 30% }), body)
+    } else if kind == "strike" {
+      return strike(stroke: sw + col, body)
+    } else if kind == "underline" or kind == "wave" {
+      return underline(offset: 0.10em, stroke: (paint: col, thickness: sw,
+        dash: if kind == "wave" { (1.7pt, 1.3pt) } else { none }), body)
+    } else if kind == "double" {
+      return underline(offset: 0.10em, stroke: sw + col,
+        underline(offset: 0.26em, stroke: (sw * 0.8) + col, body))
+    } else if kind == "circle" {
+      return highlight(fill: none, radius: 0.45em,
+        stroke: (paint: col, thickness: sw), body)
+    } else {
+      // box, jagged, fan, bracket: a pen ring round each line
+      return highlight(fill: none, radius: 0.12em,
+        stroke: (paint: col, thickness: sw), body)
+    }
+  }
+
   let drawing = {
-    if kind == "highlight" {
-      _pth(((x0 + 0.04, ymid), (x1 - 0.04, ymid)), flip,
-        paint: col.transparentize(alpha), w: lw, hand: hd, seed: seed,
-        amplitude: 0.28, closed: false)
+    if kind == "highlight" or kind == "formula" or kind == "text" or kind == "hand" {
+      // highlightx: a filled marker band (not a fat stroke through the glyphs).
+      let y0 = if kind == "formula" { ybase - h * 0.18 } else { ybase - h * 0.06 }
+      let y1 = if kind == "formula" { ytop + h * 0.16 } else { ytop + h * 0.04 }
+      let xa = x0 - (if kind == "formula" { 0.10 } else { 0.04 })
+      let xb = x1 + (if kind == "formula" { 0.10 } else { 0.04 })
+      let pts = stadium-pts((xa, y0), (xb, y1), n: 14)
+      _pth(pts, flip, fill: col.transparentize(alpha),
+        paint: if kind == "hand" { col.darken(10%).transparentize(70%) } else { none },
+        w: 0.7pt, hand: hd, seed: seed, roughness: 1.1, amplitude: 0.35)
     } else if kind == "underline" {
       let y = ybase - h * 0.13
       _pth(((x0, y), (x1, y)), flip, paint: col, w: lw, hand: hd,
@@ -330,6 +376,16 @@
 #let hl(body, colour: auto, ..a) = mark(body, kind: "highlight",
   colour: colour, ..a)
 
+/// highlightx: formula (yellow pad, optional hand border).
+#let highlight-formula(body, colour: rgb("#FFF59D"), ..a) = mark(
+  body, kind: "formula", colour: colour, ..a)
+#let surligner-formule = highlight-formula
+
+/// highlightx: paragraph / run of text.
+#let highlight-text(body, colour: rgb("#FFF59D"), ..a) = mark(
+  body, kind: "text", colour: colour, ..a)
+#let surligner-texte = highlight-text
+
 /// A `show` rule turning every `_emphasis_` into a highlighter swipe, the way
 /// jotter's `setup` does.
 #let mark-emph(colour: auto, kind: "highlight", ..a) = body => {
@@ -360,7 +416,12 @@
   rough: true,
   hand: auto,
   ghost: true,          // the faint doubled copy
-) = context {
+
+  direction: auto,) = context {
+  let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
+  set text(dir: if rtl { std.rtl } else { ltr })
+  set align(start)
+
   let hd = _hand(rough, hand)
   let col = if colour != auto { colour } else { text.fill }
   // A ratio (`width: 100%`) cannot be measured in isolation — Typst
@@ -590,7 +651,7 @@
 ///   layer   "front" | "back" — a paperclip's back strand goes UNDER the
 ///           sheet, so the caller draws it first
 #let _pin(kind, at, s, colour, flip, hd, seed,
-          needle: 1.0, angle: -38deg, len: 0.70, layer: "front",
+          needle: 1.0, angle: -38deg, len: 0.70, wide: auto, layer: "front",
           clip-scale: 0.40, clip-out: 0.40, clip-bulge: 0.0,
           clip-style: "gem", clip-tilt: -11deg) = {
   let (cx, cy) = at
@@ -663,7 +724,7 @@
     // A strip laid at `angle`, `len` long each way from `at`. The caller
     // decides where it goes — across a corner, or along an edge with both
     // ends hanging over.
-    let h = 0.20 * s
+    let h = if wide == auto { 0.20 * s } else { _cm(wide) }
     let c = calc.cos(angle)
     let sn = calc.sin(angle)
     let pt(dx, dy) = (cx + dx * c - dy * sn, cy + dx * sn + dy * c)
@@ -698,11 +759,17 @@
   tape-at: "corner",      // "corner" | "top" | "bottom" | "left" | "right"
   tape-len: 0.70,         // half-length of a strip
   tape-over: 0.55,        // how far it hangs past the edge, 0–1 of its length
+  tape-wide: auto,        // strip width; auto = 0.20 cm
   clip-scale: 0.40,       // a paperclip's size; the package's own is 0.55
   clip-out: 0.40,         // the share of it standing proud of the sheet
   clip-style: "gem",      // "gem" (measured) or "postit" (the package's)
   clip-tilt: -11deg,      // how far the Gem clip leans; "postit" has its own
-) = context {
+
+  direction: auto,) = context {
+  let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
+  set text(dir: if rtl { std.rtl } else { ltr })
+  set align(start)
+
   let hd = _hand(rough, hand)
   // A sticky note is roughly square, so unbounded text would make a very
   // wide, very flat one. Cap the width and let it grow downwards instead;
@@ -757,7 +824,8 @@
   // Tape is the exception: it can run along ANY edge and hang over it, so
   // that edge needs slack. Reserving it on all four is the honest price of
   // letting the caller choose the side after the box is measured.
-  let over = if pin != "tape" { 0.0 } else { 0.20 * tape-over + 0.24 }
+  let tw = if tape-wide == auto { 0.20 } else { _cm(tape-wide) }
+  let over = if pin != "tape" { 0.0 } else { tw * tape-over + tw * 1.2 }
   let pad = 0.22 + over
   // Room ABOVE the paper for the part of the fastener that stands proud of
   // it. A paperclip lifted to 40 % now reaches much further out than the
@@ -876,7 +944,7 @@
           // Measuring this against the strip's LENGTH instead, as a first
           // pass did, threw it right off the note: a strip is many times
           // longer than it is wide, so 0.55 of its length is miles away.
-          let e = 0.20 * tape-over
+          let e = tw * tape-over
           let (tx, ty, ta) = if tape-at == "top" {
             (pad + w / 2 + pin-shift + off, pad + h + e, 0deg)
           } else if tape-at == "bottom" {
@@ -889,7 +957,7 @@
             (pad + w * 0.80 + pin-shift + off, pad + h, -38deg)
           }
           _pin("tape", (tx, ty), 1.0, pin-colour, flip, hd, sd,
-            angle: ta, len: tape-len)
+            angle: ta, len: tape-len, wide: tape-wide)
         } else {
           let (px, py) = if pin == "pushpin" {
             (pad + w / 2 + pin-shift + off, pad + h - 0.30)
@@ -960,7 +1028,12 @@
   seed: 5,
   size: auto,             // auto = 0.53 x the band, as measured
   tracking: 0.06em,       // the original is letterspaced; 0pt turns it off
-) = context {
+
+  direction: auto,) = context {
+  let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
+  set text(dir: if rtl { std.rtl } else { ltr })
+  set align(start)
+
   let hd = _hand(rough, hand)
   let h = _cm(height)
   // On the photograph the capitals stand 25 px in a 47 px band — 0.53 of it
@@ -1162,7 +1235,8 @@
   bowing: 0.6,
   hand: auto,
   seed: 12,
-) = context {
+
+  direction: auto,) = context {
   let hd = _hand(rough, hand)
   let h = _cm(height)
   // Measured on the banner: the cap height is 0.45 of the bar and the words
@@ -1224,6 +1298,8 @@
   let W = bw + ml + mr
   let flip = h * 1cm
   let rtl = is-rtl()
+  set text(dir: if rtl { std.rtl } else { ltr })
+  set align(start)
   // The silhouette is asymmetric, so under RTL it is mirrored bodily —
   // moving only the text would leave the streaks trailing the wrong way.
   let mx(x) = if rtl { W - x } else { x }
@@ -1328,7 +1404,12 @@
   rough: false,
   hand: auto,
   baseline: 0.28em,
-) = context {
+
+  direction: auto,) = context {
+  let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
+  set text(dir: if rtl { std.rtl } else { ltr })
+  set align(start)
+
   let hd = _hand(rough, hand)
   let r2l = is-rtl()
   let fr = if frame == auto { colour } else { frame }
@@ -1409,7 +1490,12 @@
   title: none,
   title-fill: auto,
   title-colour: auto,
-) = context {
+
+  direction: auto,) = context {
+  let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
+  set text(dir: if rtl { std.rtl } else { ltr })
+  set align(start)
+
   let hd = _hand(rough, hand)
   let r2l = is-rtl()
   let fr = if frame == auto { colour } else { frame }
@@ -1535,7 +1621,12 @@
   seed: 17,
   rough: false,
   hand: auto,
-) = context {
+
+  direction: auto,) = context {
+  let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
+  set text(dir: if rtl { std.rtl } else { ltr })
+  set align(start)
+
   let hd = _hand(rough, hand)
   let r2l = is-rtl()
   let bk = if fill == auto { colour.lighten(90%) } else { fill }
@@ -1630,7 +1721,12 @@
   seed: 19,
   rough: false,
   hand: auto,
-) = context {
+
+  direction: auto,) = context {
+  let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
+  set text(dir: if rtl { std.rtl } else { ltr })
+  set align(start)
+
   let hd = _hand(rough, hand)
   let r2l = is-rtl()
   let bk = if fill == auto { colour.lighten(92%) } else { fill }
@@ -1721,7 +1817,12 @@
   seed: 21,
   rough: false,
   hand: auto,
-) = context {
+
+  direction: auto,) = context {
+  let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
+  set text(dir: if rtl { std.rtl } else { ltr })
+  set align(start)
+
   let hd = _hand(rough, hand)
   let r2l = is-rtl()
   let br = if bar == auto { fill.lighten(12%) } else { bar }
@@ -1771,7 +1872,12 @@
   seed: 23,
   rough: false,
   hand: auto,
-) = context {
+
+  direction: auto,) = context {
+  let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
+  set text(dir: if rtl { std.rtl } else { ltr })
+  set align(start)
+
   let hd = _hand(rough, hand)
   let r2l = is-rtl()
   let tc = if luma(colour).components().first() > 55% { black } else { white }
@@ -1821,7 +1927,12 @@
   seed: 27,
   rough: false,
   hand: auto,
-) = context {
+
+  direction: auto,) = context {
+  let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
+  set text(dir: if rtl { std.rtl } else { ltr })
+  set align(start)
+
   let hd = _hand(rough, hand)
   layout(avail => {
     let W = _cm(if type(width) == ratio { avail.width * width } else { width })
@@ -1849,26 +1960,50 @@
 }
 
 /// A polaroid: a white sheet with a fat bottom border and a caption.
+/// A tilted instant-photo card. The photo zone is a real content area:
+/// drop an image in it, or *write* — text is centred on the tinted
+/// background (`photo-fill`, `none` for a transparent zone). `width` is
+/// the card width (photo zone = width − 2·border), `photo-height` fixes
+/// the zone height when the body alone would be too flat or empty.
+///
+/// ```typ
+/// #polaroid(caption: [Plage, juin])[#image("photo.jpg", width: 100%)]
+/// #polaroid(caption: [à retirer])[Souvenir de la sortie scolaire]
+/// ```
 #let polaroid(
   body,
   caption: none,
   fill: white,
+  photo-fill: rgb("#BFD8E2"),
   border: 0.28,
   foot: 0.85,
   angle: -2deg,
-  width: auto,
+  width: 7cm,
+  photo-height: auto,
+  inset: 6pt,
   seed: 29,
   rough: false,
   hand: auto,
   shadow: true,
+  direction: auto,
 ) = context {
+  let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
+  set text(dir: if rtl { std.rtl } else { ltr })
+  set align(start)
+
   let hd = _hand(rough, hand)
-  let inner = box(width: if width == auto { auto } else { _cm(width) * 1cm },
-    body)
-  let m = measure(inner)
-  let w = _cm(m.width)
+  let W = if width == auto { 7 } else { _cm(width) }
+  let photo-w = W - 2 * border
+  let ph = if photo-height != auto { photo-height }
+    else if body == [] { 4.2cm } else { auto }
+  let zone = block(width: photo-w * 1cm,
+    height: ph,
+    inset: inset,
+    fill: photo-fill,
+    align(center + horizon, body))
+  let m = measure(zone)
+  let w = photo-w
   let h = _cm(m.height)
-  let W = w + 2 * border
   let H = h + border + foot
   let pad = 0.2
   let flip = (H + 2 * pad) * 1cm
@@ -1886,7 +2021,7 @@
       _pth(card, flip, fill: fill, paint: luma(200), w: 0.6pt, hand: hd,
         seed: seed)
       place(top + left, dx: (pad + border) * 1cm, dy: (pad + border) * 1cm,
-        inner)
+        zone)
       if caption != none {
         place(top + left, dx: pad * 1cm, dy: (pad + border + h) * 1cm,
           box(width: W * 1cm, height: foot * 1cm,
@@ -2043,7 +2178,12 @@
   margin: 2.6cm,
   rest: 1.8cm,
   ..args,
-) = context {
+
+  direction: auto,) = context {
+  let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
+  set text(dir: if rtl { std.rtl } else { ltr })
+  set align(start)
+
   let r2l = is-rtl()
   let sd = if side != auto { side } else if r2l { "right" } else { "left" }
   let m = if sd == "left" { (left: margin, rest: rest) }

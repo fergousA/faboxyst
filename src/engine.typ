@@ -719,3 +719,116 @@
   let passes = _parse-paths(str(plugin-handle.rough_arc(bytes(params))))
   passes.map(p => draw.line(..p, ..style)).join()
 }
+
+// ===========================================================================
+//  Inner relief, after the `shadowed` package (TimVo): an SVG mask
+//  blurred with feGaussianBlur, clipped to a rounded box — a true
+//  Gaussian fall-off on every side and corner, which stacked copies or
+//  gradient bands cannot match. `mode: "sunken"` (creusé) darkens the
+//  top-left rim and lightens the bottom-right one; `"raised"` (bombé)
+//  does the opposite. Returns an image the size of the box, meant to
+//  lie on top of the box fill.
+// ===========================================================================
+
+#let relief(
+  w, h,
+  mode: "sunken",      // "sunken" (creusé) | "raised" (bombé)
+  radius: 4pt,
+  depth: 5pt,          // how far the rim fades inward
+  strength: 0.55,      // rim opacity at the edge, 0-1
+) = {
+  // Soft inner rim built from stacked translucent rounded strokes, the
+  // same recipe as fabox's outer shadows: each band sits a bit deeper
+  // and a bit fainter, so the alphas pile up into a smooth Gaussian-like
+  // fade on all four sides, corners included. Sunken stacks a symmetric
+  // dark rim; raised stacks a diagonal bevel (light top-left, dark
+  // bottom-right) via a gradient stroke paint.
+  let sunk = mode == "sunken" or mode == "creuse"
+  let L = 14
+  let s = calc.min(1, calc.max(0, strength))
+  block(width: w, height: h, clip: true, {
+    if sunk {
+      // one symmetric dark rim, all four sides
+      for i in range(L) {
+        let t = (i + 0.5) / L
+        let c = depth * t
+        let th = depth / L * 2.4
+        let a = s * (1 - t) * (1 - t) * 2.6 / L
+        if a > 0.004 {
+          place(top + left, dx: c, dy: c,
+            rect(width: w - 2 * c, height: h - 2 * c,
+              radius: calc.max(radius - c, 0.4pt),
+              stroke: (thickness: th,
+                paint: black.transparentize(100% - a * 100%))))
+        }
+      }
+    } else {
+      // raised: a darker rim on the top side, then a lighter and
+      // thinner one on the bottom side — the face reads bulged
+      for i in range(L) {
+        let t = (i + 0.5) / L
+        let c = depth * t
+        let th = depth / L * 2.4
+        let a = s * (1 - t) * (1 - t) * 2.6 / L
+        if a > 0.004 {
+          place(top + left, dx: c, dy: c,
+            rect(width: w - 2 * c, height: h - 2 * c,
+              radius: calc.max(radius - c, 0.4pt),
+              stroke: (thickness: th, paint: gradient.linear(
+                (black.transparentize(100% - a * 100%), 0%),
+                (black.transparentize(100% - a * 40%), 30%),
+                (black.transparentize(100%), 100%),
+                angle: 90deg))))
+        }
+      }
+      let d2 = depth * 0.6
+      for i in range(L) {
+        let t = (i + 0.5) / L
+        let c = d2 * t
+        let th = d2 / L * 2.4
+        let a = s * 0.5 * (1 - t) * (1 - t) * 2.6 / L
+        if a > 0.004 {
+          place(top + left, dx: c, dy: c,
+            rect(width: w - 2 * c, height: h - 2 * c,
+              radius: calc.max(radius - c, 0.4pt),
+              stroke: (thickness: th, paint: gradient.linear(
+                (white.transparentize(100%), 0%),
+                (white.transparentize(100%), 45%),
+                (white.transparentize(100% - a * 100%), 100%),
+                angle: 90deg))))
+        }
+      }
+    }
+  })
+}
+
+/// A plain rounded box with a `shadowed`-style inner shadow: the
+/// surface reads carved into the page (creusé).
+///
+/// ```typ
+/// #insetbox[Cette boîte a une ombre interne.]
+/// ```
+#let insetbox(
+  body,
+  radius: 6pt,
+  blur: 5pt,
+  strength: 0.6,
+  back: white,
+  inset: (x: 12pt, y: 10pt),
+  width: 100%,
+) = layout(avail => {
+  let W = if type(width) == ratio { avail.width * width } else { width }
+  let inner = block(width: W, inset: inset, body)
+  let H = measure(inner).height
+  block(width: W, height: H, {
+    place(top + left, rect(width: W, height: H, radius: radius, fill: back))
+    place(top + left,
+      relief(W, H, mode: "sunken", radius: radius, depth: blur,
+        strength: strength))
+    place(top + left, inner)
+  })
+})
+
+/// French alias.
+#let boite-creusee(..a) = insetbox(..a)
+

@@ -17,6 +17,7 @@
   arc-pts, ellipse-pts)
 #import "mapdraw.typ": (polylines as md-polylines, region as md-region,
   rough-outline as md-rough-outline)
+#import "watermark.typ": paint-watermark, resolve-wm-colour
 
 // ---------------------------------------------------------------------------
 //  geometry helpers
@@ -96,6 +97,10 @@
   inset: 0.62cm,
   width: 100%,
   title-size: 1.15em,
+  watermark: none,
+  watermark-colour: auto,
+  watermark-angle: -18deg,
+  watermark-size: 2.1em,
 ) = context {
   let ik = if ink == auto { colour } else { ink }
   // The inner page reads as the sheet *inside* the cover, so its line is a
@@ -250,6 +255,14 @@
           place(top + left, md-region(
             (ellipse-pts((bx, y), bead, bead),), flip: flip, fill: rc))
         }
+      }
+
+      // --- watermark ------------------------------------------------------
+      if watermark != none {
+        let wc = resolve-wm-colour(watermark-colour, colour)
+        place(top + left, box(width: W * 1cm, height: H * 1cm, clip: true,
+          paint-watermark(watermark, colour: wc.transparentize(50%),
+            angle: watermark-angle, size: watermark-size)))
       }
 
       // --- the body -------------------------------------------------------

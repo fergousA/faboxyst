@@ -4,7 +4,7 @@
 //    typst compile examples/quickstart.typ examples/quickstart.pdf --root .
 // ===========================================================================
 
-#import "/lib.typ": *
+#import "@preview/faboxyst:0.2.0": *
 
 #set page(width: 16cm, height: auto, margin: 10mm)
 #set text(font: "DejaVu Sans", size: 10.5pt)
@@ -12,7 +12,7 @@
 
 #show: faboxyst.with(theme: themes.notebook)
 
-= faboxyst #text(size: 0.7em, fill: luma(90))[v0.1.0]
+= faboxyst #text(size: 0.7em, fill: luma(90))[v0.2.0]
 
 #fabox(title: [Note])[A titled coloured box — the workhorse.]
 

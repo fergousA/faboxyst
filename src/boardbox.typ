@@ -103,6 +103,7 @@
   text-fill: auto,
   grid: true,
   grid-step: 0.32cm,
+  grid-stroke: auto,
   tray: true,
   border: 0.16cm,
   inset: 0.32cm,
@@ -163,19 +164,31 @@
         let g = if luma(slate).components().first() > 50% {
           slate.darken(5%)
         } else { slate.lighten(7%) }
+        // `grid-stroke`: auto derives a faint tint of the slate; a paint
+        // colours the lines; a length sets their thickness; a stroke
+        // dictionary sets paint, thickness and dash together.
+        let g-paint = if grid-stroke == auto { g }
+          else if type(grid-stroke) == dictionary { grid-stroke.at("paint", default: g) }
+          else if type(grid-stroke) == length { g }
+          else { grid-stroke }
+        let g-thick = if type(grid-stroke) == dictionary {
+          grid-stroke.at("thickness", default: 0.25pt)
+        } else if type(grid-stroke) == length { grid-stroke } else { 0.25pt }
+        let g-dash = if type(grid-stroke) == dictionary {
+          grid-stroke.at("dash", default: none)
+        } else { none }
+        let g-stroke = (paint: g-paint, thickness: g-thick, dash: g-dash)
         let step = grid-step
         let x = step
         while x < sw {
           place(top + left, dx: sx + x, dy: sy,
-            line(length: sh, angle: 90deg,
-              stroke: (paint: g, thickness: 0.25pt)))
+            line(length: sh, angle: 90deg, stroke: g-stroke))
           x = x + step
         }
         let y = step
         while y < sh {
           place(top + left, dx: sx, dy: sy + y,
-            line(length: sw, angle: 0deg,
-              stroke: (paint: g, thickness: 0.25pt)))
+            line(length: sw, angle: 0deg, stroke: g-stroke))
           y = y + step
         }
       }

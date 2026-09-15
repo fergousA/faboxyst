@@ -16,10 +16,11 @@
 //  the folded corner move to the other edge on their own.
 // ===========================================================================
 
-#import "engine.typ": (rough-points, rounded-rect-pts, sketch-points,
+#import "engine.typ": (rough-points, rounded-rect-pts, sketch-points, relief,
   arc-pts, ellipse-pts, bezier-pts, circle-pts)
 #import "mapdraw.typ": (polylines as md-polylines, region as md-region,
   rough-outline as md-rough-outline)
+#import "watermark.typ": paint-watermark, resolve-wm-colour
 
 #let _cm(l) = if type(l) == length { l / 1cm } else { l }
 
@@ -284,8 +285,13 @@
 ///   sharp              which corners stay square: `("northwest", ..)` or
 ///                      `("all",)`
 ///   shadow             none | true | "lifted" | "small" | "large" |
-///                      "fuzzy" | "plain". `true` is the plain offset
-///                      shadow, the one that gives a box its relief.
+///                      "fuzzy" | "plain" | "inner" | "creuse" | "emboss" |
+///                      "bombe". `true` is the plain offset shadow, the one
+///                      that gives a box its relief. "inner"/"creuse" carve
+///                      the box into the page with inset gradient rims (after
+///                      the `shadowed` package's inner shadows);
+///                      "emboss"/"bombe" raise it with a light top-left bevel
+///                      plus a faint drop shadow.
 ///   shadow-colour      what it is painted in
 ///   shadow-spread      how far it reaches, in cm
 ///   shadow-opacity     how dark it is at its darkest, 0–100 %
@@ -327,7 +333,7 @@
   weight: 1.0pt,
   title-weight: auto,
   inset: 0.34cm,
-  title-inset: 0.24cm,
+  title-inset: 0.24cm,   // pads the title line AND any tab label
   rule-between: true,     // the line under the title
   frame-hidden: false,    // no outline at all
   side-bar: none,         // e.g. 0.14 — a thick rule down the leading edge
@@ -395,6 +401,8 @@
   fold-size: 0.42,
   watermark: none,
   watermark-colour: auto,
+  watermark-angle: -18deg,  // rotation of the mark; 0deg = upright
+  watermark-size: 2.1em,
   halo: none,             // e.g. (0.10, yellow) or ((0.10, yellow), (0.06, red))
   border: none,
   // Thickness of the "caution" band and the width of ONE stripe. A bare
@@ -553,6 +561,7 @@
                   else if shadow == "large" { 0.46 }
                   else if shadow == "fuzzy" { 0.28 }
                   else if shadow == "plain" { 0.16 }
+                  else if shadow == "inner" or shadow == "creuse" { 0.02 }
                   else { 0.26 }
 
     // --- measure the parts ---------------------------------------------
@@ -600,17 +609,20 @@
       // `width: auto` on the inner box keeps the words on ONE line. Without
       // it a side banner's label wrapped: it is placed in a box as wide as
       // the band is deep, and text reflows to fit whatever it is given.
-      box(inset: (x: 0.34cm, y: 0.16cm),
+      box(inset: (x: (tins + 0.10) * 1cm, y: (tins * 0.66) * 1cm),
         box(width: auto, text(fill: tc, weight: "bold", title)))
     } else if (
         tab == "plaque") {
       // The plaque carries the heading at full size — it IS the title, not a
       // label pointing at one — and needs enough padding that the rule it
       // straddles does not crowd the descenders.
-      box(inset: (x: 0.34cm, y: 0.20cm),
+      box(inset: (x: (tins + 0.10) * 1cm, y: (tins * 0.83) * 1cm),
         text(fill: tc, weight: "bold", title))
     } else {
-      box(inset: (x: 0.30cm, y: 0.14cm),
+      // `title-inset` pads the tab label too — the slab, plaque and
+      // banner all grow with it; the offsets keep the 0.1.0 defaults
+      // (0.30 / 0.14 at title-inset 0.24) exactly as they were
+      box(inset: (x: (tins + 0.06) * 1cm, y: (tins * 0.6) * 1cm),
         text(fill: tc, weight: "bold", size: 0.94em, title))
     }
     let tab-m = if tab-body == none { (width: 0cm, height: 0cm) }
@@ -758,20 +770,23 @@
       //  of translucent copies whose offset grows and whose opacity falls, so
       //  the edge fades instead of stopping dead. A single flat copy — which
       //  is what the first version drew — reads as a printing misregistration.
-      if shadow != none {
+      if shadow != none and shadow != "inner" and shadow != "creuse" {
         let layers = calc.max(1, shadow-blur)
         let spread = if shadow-spread != auto { _cm(shadow-spread) }
                      else if shadow == "small" { 0.09 }
                      else if shadow == "large" { 0.30 }
                      else if shadow == "fuzzy" { 0.26 }
+                     else if shadow == "emboss" or shadow == "bombe" { 0.07 }
                      else if shadow == "plain" { 0.13 } else { 0.20 }
         // Where the shadow sits relative to the box. Under RTL it falls to
         // the LEFT: the light still comes from above, but the trailing edge
         // has moved, and a shadow on the reading side looks lit from behind.
         let sgn = if rtl { -1.0 } else { 1.0 }
+        let hug = shadow == "emboss" or shadow == "bombe"
         let (dx, dy) = if shadow-offset != auto {
           (_cm(shadow-offset.at(0)) * sgn, _cm(shadow-offset.at(1)))
         } else if shadow == "fuzzy" { (0.0, 0.0) }
+        else if hug { (0.0, 0.0) }
         else if shadow == "plain" { (spread * sgn, -spread) }
         else { (0.0, -spread * 0.55) }
 
@@ -836,14 +851,22 @@
           // `layers × op`. `shadow-opacity` is the figure the caller cares
           // about — the darkest point — so it is divided out here rather
           // than left as a per-layer value nobody can predict.
-          let peak = if shadow-opacity != auto { shadow-opacity } else { 98% }
+          let peak = if shadow-opacity != auto { shadow-opacity }
+                  else if hug { 50% } else { 98% }
           let op = peak / layers
           for k in range(layers) {
             let t = (k + 1) / layers
             let e = spread * t
             let a = 1 - t
-            let g = _rect-corners((mL - e + dx, fy0 - e + dy),
-              (W - mR + e + dx, fy1 + e + dy), radius + e, sharp: sharp)
+            let g = if hug {
+              // raised: the shadow stays the size of the box and only
+              // peeks below, so its four corners coincide with the box's
+              _rect-corners((mL + dx, fy0 + e * 0.15 + dy),
+                (W - mR + dx, fy1 + e + dy), radius, sharp: sharp)
+            } else {
+              _rect-corners((mL - e + dx, fy0 - e + dy),
+                (W - mR + e + dx, fy1 + e + dy), radius + e, sharp: sharp)
+            }
             place(top + left, md-region((g,), flip: flip,
               fill: sc.transparentize(100% - op * a)))
           }
@@ -869,13 +892,13 @@
         place(top + left, md-region((outline,), flip: flip, fill: bk))
       }
 
+
       // --- watermark, behind the text -------------------------------------
       if watermark != none {
-        let wc = if watermark-colour == auto { colour.lighten(62%) }
-                 else { watermark-colour }
+        let wc = resolve-wm-colour(watermark-colour, colour)
         place(top + left, box(width: W * 1cm, height: H * 1cm, clip: true,
-          place(center + horizon, rotate(-18deg,
-            text(size: 2.1em, weight: "bold", fill: wc, watermark)))))
+          paint-watermark(watermark, colour: wc, angle: watermark-angle,
+            size: watermark-size)))
       }
 
       // --- vignette: a bevel just inside the frame ------------------------
@@ -1011,7 +1034,7 @@
           // azurios draws this rule INSET from both ends, so it reads as an
           // underline for the title rather than a division of the box.
           let ri = _cm(title-rule-inset)
-          let rw = if title-rule-weight == auto { tw }
+          let rw = if title-rule-weight == auto { weight }
                    else { title-rule-weight }
           place(top + left, SP(((mL + ri, fy1 - th), (W - mR - ri, fy1 - th)),
             seed + 5, rw, fr, closed: false))
@@ -1660,6 +1683,26 @@
           place(top + left, dx: tx * 1cm, dy: flip - ty * 1cm, tab-body)
         }
       }
+
+      // --- relief: inset rims (creusé) or bevel (bombé), after shadowed --
+      //  A blurred SVG mask (feGaussianBlur) clipped to the box, like the
+      //  `shadowed` package's inset shadows: a true Gaussian rim on every
+      //  side and corner. Sunken boxes darken the top-left rim and lighten
+      //  the bottom-right (the light falls into the well); raised do the
+      //  opposite. Painted over the content, as shadowed paints inset
+      //  shadows on top of the body.
+      if shadow == "inner" or shadow == "creuse" or shadow == "emboss" or shadow == "bombe" {
+        let sunk = shadow == "inner" or shadow == "creuse"
+        // drawn last and straddling the frame line, so the rim shades
+        // the rule itself, not only the fill inside it
+        let bw = weight
+        place(top + left, dx: mL * 1cm - bw, dy: fy0 * 1cm - bw,
+          relief((W - mL - mR) * 1cm + 2 * bw, (fy1 - fy0) * 1cm + 2 * bw,
+            mode: if sunk { "sunken" } else { "raised" },
+            radius: radius * 1cm + bw, depth: 8pt,
+            strength: if sunk { 0.75 } else { 0.62 }))
+      }
+
     })
   }))
 }
@@ -1681,7 +1724,12 @@
   roughness: 1.0,
   bowing: 0.6,
   seed: 5,
-) = {
+
+  direction: auto,) = context {
+  let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
+  set text(dir: if rtl { std.rtl } else { ltr })
+  set align(start)
+
   let R = size / 2
   let flip = size * 1cm
   let c = (R, R)
@@ -1714,8 +1762,11 @@
   bowing: 0.6,
   seed: 3,
   width: 100%,
-) = context {
+
+  direction: auto,) = context {
   let rtl = is-rtl()
+  set text(dir: if rtl { std.rtl } else { ltr })
+  set align(start)
   layout(avail => {
     let W = _cm(if type(width) == ratio { avail.width * width } else { width })
     let ins = _cm(inset)

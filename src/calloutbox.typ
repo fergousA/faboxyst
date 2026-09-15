@@ -6,6 +6,7 @@
 // ===========================================================================
 
 #import "fabox.typ": is-rtl
+#import "watermark.typ": paint-watermark, resolve-wm-colour
 
 #let _tail-tri(side, W, H, s, t) = {
   // (A on edge, tip, B on edge). The tip sits PAST A or B so the
@@ -35,6 +36,10 @@
   weight: 1.35pt,
   inset: 0.34cm,
   width: 100%,
+  watermark: none,
+  watermark-colour: auto,
+  watermark-angle: -18deg,
+  watermark-size: 2.1em,
   direction: auto,
 ) = context {
   let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
@@ -94,6 +99,13 @@
       place(top + left, line(start: A, end: Tip, stroke: st))
       place(top + left, line(start: B, end: Tip, stroke: st))
 
+      if watermark != none {
+        let wc = resolve-wm-colour(watermark-colour, colour)
+        place(top + left, dy: y0,
+          box(width: W, height: H, clip: true,
+            paint-watermark(watermark, colour: wc.transparentize(50%),
+              angle: watermark-angle, size: watermark-size)))
+      }
       place(top + left, dx: inset, dy: y0 + bar-h + inset, main)
     })
   })

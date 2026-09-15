@@ -10,6 +10,8 @@
 #import "@preview/cetz:0.5.2"
 #import "engine.typ" as eng
 #import "theme.typ": theme-state, heading-weight
+#import "fabox.typ": is-rtl
+#import "watermark.typ": paint-watermark, resolve-wm-colour
 
 #let PT-PER-CM = 28.3465
 #let to-cm(l) = l / 1cm
@@ -61,8 +63,17 @@
   pass-offset: 0.06,    // how far apart the passes sit, cm
   curl: 0.42,           // corner curl for shape: "plaque"
   text-fill: auto,      // colour for the content
-  breakable: false,     // see the note below
-) = context {
+  breakable: false,      // see the note below
+  watermark: none,
+  watermark-colour: auto,
+  watermark-angle: -18deg,
+  watermark-size: 2.1em,
+
+  direction: auto,) = context {
+  let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
+  set text(dir: if rtl { std.rtl } else { ltr })
+  set align(start)
+
   let th = theme-state.get()
   let col = if stroke-colour == auto { th.accent } else { stroke-colour }
   let sw = if stroke-weight == auto { th.stroke-weight } else { stroke-weight }
@@ -189,6 +200,7 @@
   expand: 0.14em,   // how far the ink bleeds past the words
   lift: 0.0em,      // manual vertical nudge, if you want one
 ) = context {
+
   let th = theme-state.get()
   let c = if colour == auto { th.palette.hilite } else { colour }
   let sd = if seed == auto { th.seed + 7 } else { seed }
@@ -206,6 +218,17 @@
   let ex = measure(box(width: expand)).width
   let lf = measure(box(height: lift)).height
 
+
+  // A swipe is one inline stroke: when the run's natural width exceeds
+  // the line's budget (read off the page styles), it cannot follow the
+  // text — hand it to the native per-line highlight instead.
+  let mg = page.margin
+  let len(x) = if type(x) == length { x } else { 1.5cm }
+  let ml = len(if type(mg) == dictionary { mg.at("left", default: 1.5cm) } else { mg })
+  let mr = len(if type(mg) == dictionary { mg.at("right", default: 1.5cm) } else { mg })
+  if m.width + 2 * ex > page.width - ml - mr {
+    return std.highlight(fill: c.transparentize(55%), body)
+  }
   box(baseline: 0pt, {
     // the inline box's top is at dy = -m.height relative to the baseline
     place(top + left, dx: -ex, dy: mid + lf,
@@ -232,19 +255,51 @@
   colour: auto,
   seed: auto,
   open-frame: true,      // the marker frame whose ends never meet
+  breakable: false,      // true = native block frame, can cross pages
   ..rest,
-) = context {
+
+  direction: auto,) = context {
+  let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
+  set text(dir: if rtl { std.rtl } else { ltr })
+  set align(start)
+
   let th = theme-state.get()
   let col = if colour == auto { th.accent } else { colour }
   let dir = th.dir
-  let s = if dir == rtl { -1.0 } else { 1.0 }
+  let s = if rtl { -1.0 } else { 1.0 }
   let sd = if seed == auto { th.seed + seed-counter.get().first() * 17 } else { seed }
   let label = if examples-label != auto { examples-label } else {
-    if dir == rtl { [أمثلة:] } else { [EXAMPLES:] }
+    if rtl { [أمثلة:] } else { [EXAMPLES:] }
   }
   seed-counter.step()
 
   let p = th.pad
+  // A hand-drawn frame is one canvas of a fixed size: it cannot cross a
+  // page break. Opting into `breakable` swaps it for a native block whose
+  // stroke can — the wobble is lost, the content flows.
+  if breakable {
+    let head0 = block(width: 100%, align(start)[
+      #text(font: th.fonts.heading, weight: heading-weight(th.dir),
+        size: th.size * 1.15, fill: th.ink, term)
+      #h(0.25em)
+      #body
+    ])
+    return block(width: 100%, inset: p + 0.28cm, breakable: true,
+      radius: th.radius * 1cm * 0.8,
+      stroke: (paint: col, thickness: th.stroke-weight * 2.2, join: "round"),
+      { head0
+        if examples != none {
+          v(0.5em)
+          block(width: 100%, align(start)[
+            #box(height: 1.15em)[]
+            #text(font: th.fonts.heading, weight: heading-weight(th.dir),
+              size: th.size * 0.98, fill: th.ink,
+              if rtl { [أمثلة:] } else { [EXAMPLES:] })
+            #h(0.6em)
+            #examples
+          ])
+        } })
+  }
   layout(avail => {
     let W = avail.width
     let inner-w = W - 2 * p - 0.55cm
@@ -280,8 +335,8 @@
         let x1 = Wc - m
         let y0 = -(Hc - m)
         let y1 = -m
-        let lx = if dir == rtl { x1 } else { x0 }
-        let tx = if dir == rtl { x0 } else { x1 }
+        let lx = if rtl { x1 } else { x0 }
+        let tx = if rtl { x0 } else { x1 }
         let st = (paint: col, thickness: th.stroke-weight * 2.2,
           join: "round", cap: "round")
         let gap = 0.26
@@ -317,13 +372,18 @@
   title-size: auto,
   seed: auto,
   drop: 1.25,            // how far a hook arrow reaches below the frame
-) = context {
+
+  direction: auto,) = context {
+  let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
+  set text(dir: if rtl { std.rtl } else { ltr })
+  set align(start)
+
   let th = theme-state.get()
   let col = if colour == auto { th.accent } else { colour }
   let tf = if title-fill == auto { th.palette.red } else { title-fill }
   let ts = if title-size == auto { th.size * 2.0 } else { title-size }
   let dir = th.dir
-  let s = if dir == rtl { -1.0 } else { 1.0 }
+  let s = if rtl { -1.0 } else { 1.0 }
   let sd = if seed == auto { th.seed + seed-counter.get().first() * 17 } else { seed }
   seed-counter.step()
 
@@ -352,12 +412,12 @@
         import cetz.draw: *
         let bh = to-cm(H)
         let sw = to-cm(side)
-        let x0 = if dir == rtl { 0.18 } else { sw }
-        let x1 = if dir == rtl { Wc - sw } else { Wc - 0.18 }
+        let x0 = if rtl { 0.18 } else { sw }
+        let x1 = if rtl { Wc - sw } else { Wc - 0.18 }
         let y1 = -0.18
         let y0 = -(bh - 0.18)
-        let lx = if dir == rtl { x1 } else { x0 }
-        let tx = if dir == rtl { x0 } else { x1 }
+        let lx = if rtl { x1 } else { x0 }
+        let tx = if rtl { x0 } else { x1 }
         let st = (paint: col, thickness: th.stroke-weight * 2.6,
           join: "round", cap: "round")
         let op = (amplitude: 0.55 * th.roughness, wavelength: 190)
@@ -400,9 +460,9 @@
       // the icon, placed in layout space so it never clips
       if has-icon {
         let ix = if use-tail == "hook" {
-          if dir == rtl { 0.1cm } else { W - 1.5cm }
+          if rtl { 0.1cm } else { W - 1.5cm }
         } else {
-          if dir == rtl { W - 1.55cm } else { 0.15cm }
+          if rtl { W - 1.55cm } else { 0.15cm }
         }
         let iy = if use-tail == "hook" { H + drop * 1cm - 0.5cm }
                  else { H / 2 - 0.55cm }
@@ -418,7 +478,12 @@
 // ---------------------------------------------------------------------------
 //  numbered answer item: highlighted badge + value
 // ---------------------------------------------------------------------------
-#let answer(number, value, colour: auto, value-fill: auto, seed: auto) = context {
+#let answer(number, value, colour: auto, value-fill: auto, seed: auto,
+  direction: auto,) = context {
+  let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
+  set text(dir: if rtl { std.rtl } else { ltr })
+  set align(start)
+
   let th = theme-state.get()
   let c = if colour == auto { th.palette.hilite } else { colour }
   let vf = if value-fill == auto { th.palette.navy } else { value-fill }
@@ -454,7 +519,12 @@
   }))
 }
 
-#let sticky(body, width: 4cm, angle: -3deg, colour: auto, seed: 1) = context {
+#let sticky(body, width: 4cm, angle: -3deg, colour: auto, seed: 1,
+  direction: auto,) = context {
+  let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
+  set text(dir: if rtl { std.rtl } else { ltr })
+  set align(start)
+
   let th = theme-state.get()
   let c = if colour == auto { th.palette.cream } else { colour }
   layout(_ => {
