@@ -4,9 +4,9 @@
 //    typst compile manual.typ --root .
 // ===========================================================================
 
-#import "/lib.typ": *
+#import "@preview/faboxyst:0.2.0": *
 
-#let VERSION = "0.1.0"
+#let VERSION = "0.2.0"
 #let ACCENT = rgb("#1772B2")
 #let ACCENT-SOFT = rgb("#E8F2FA")
 #let INK = rgb("#1A1A1A")
@@ -39,7 +39,16 @@
     let n = counter(page).get().first()
     if n <= 1 { return }
     set text(size: 8pt, fill: MUTED, font: SANS)
-    align(center, counter(page).display("1"))
+    align(left)[
+      #mark(kind: "fan", hand: true, opacity: 0.5, colour: yellow.darken(10%))[
+        #context {
+          let page-actuelle = counter(page).get().first()
+          let total-pages = counter(page).final().first()
+
+          [#page-actuelle of #total-pages]
+        }
+      ]
+    ]
   },
 )
 #set text(font: BODY, size: 10pt, fill: INK, lang: "en")
@@ -140,28 +149,42 @@
 //  COVER
 // ===========================================================================
 
-#page(header: none, footer: none, margin: (x: 2.2cm, y: 2.4cm), {
-  align(horizon, {
-    text(font: SANS, size: 11pt, fill: ACCENT, tracking: 1.2pt)[TYPST PACKAGE]
-    v(0.6em)
-    text(font: SANS, size: 36pt, weight: "bold", fill: INK)[faboxyst]
-    v(0.25em)
-    text(size: 13pt, fill: MUTED)[Coloured boxes for Typst, in the spirit of tcolorbox]
-    v(3.1em)
-
-    text(size: 13pt, fill: luma(68))[#emoji.hand.write FERGOUS Abdelhak]
-  
-    v(.1em)
-    line(length: 4.2cm, stroke: 2pt + ACCENT)
-    v(1.1em)
-    text(font: SANS, size: 11pt)[Manual for version #VERSION]
-    v(0.25em)
-    text(size: 10pt, fill: MUTED)[Typst 0.15  ·  RTL-aware]
-  })
-  place(bottom + left, {
-    set text(size: 8.5pt, fill: MUTED)
-    [Compile: #raw("typst compile manual.typ --root .")]
-  })
+#page(header: none, footer: none, margin: (x: 1.5cm, y: 1.3cm), {
+  set align(horizon)
+  coilbox(
+    frame: rgb("#7EC8E3"),
+    coil-a: rgb("#3D9BD1"),
+    coil-b: rgb("#9AD9F0"),
+    width: 100%,
+    inset: (x: 1.0cm, y: 0.9cm),
+  )[
+    #align(center, {
+      text(font: SANS, size: 11pt, fill: ACCENT, tracking: 1.2pt)[TYPST PACKAGE]
+      v(0.8em)
+      plankbox(width: 86%)[#align(center,
+        text(font: SANS, size: 30pt, weight: "bold", fill: white)[faboxyst])]
+      v(0.7em)
+      text(size: 13pt, fill: MUTED)[Coloured boxes for Typst, in the spirit of tcolorbox]
+      v(2.4em)
+      text(size: 13pt, fill: luma(68))[#emoji.hand.write FERGOUS Abdelhak]
+      v(.1em)
+      line(length: 4.2cm, stroke: 2pt + ACCENT)
+      v(1.1em)
+      text(font: SANS, size: 11pt)[Manual for version #VERSION]
+      v(0.25em)
+      text(size: 10pt, fill: MUTED)[Typst 0.15  ·  RTL-aware]
+    })
+  ]
+  place(bottom + right, dx: -0.2cm, dy: -0.1cm,
+    post-it(angle: 5deg, size: 5.2cm)[
+      #set text(size: 8pt)
+      Compilation :
+      #v(2pt)
+      #terminal(inset: 0.35em)[
+        #set text(size: 6.2pt)
+        typst compile manual.typ --root .
+      ]
+    ])
 })
 
 // ===========================================================================
@@ -172,6 +195,61 @@
   heading(outlined: false, numbering: none)[Contents]
   v(0.3em)
   columns(2, outline(indent: 0.7em, depth: 3, title: none))
+})
+
+// ===========================================================================
+//  WHAT'S NEW
+// ===========================================================================
+
+#page(header: none, {
+  align(center,
+    ticket(stub: [v#VERSION], colour: rgb("#1772B2"))[UNIVERSE PACKAGE])
+  v(1.1em)
+  parchemin(title: [What's new in #VERSION])[
+    #set par(justify: false)
+    - *Programme plate* — #cmd[leconbox], #cmd[pinbox], #cmd[brushbox],
+      #cmd[matierebox] and the #cmd[halftone] / #cmd[trame] dot-screen fill
+      of the ribbon panel.
+    - *Vintage sheets* — #cmd[vintageframe] (eight scrollwork frames, SVG)
+      and #cmd[vintagebox] (six bracket plaques, EPS).
+    - *TikZ patterns* — #cmd[tikzpattern] / #cmd[motif-tikz]: fourteen
+      #raw("patterns.meta") motifs with #raw("distance"), #raw("angle"),
+      #raw("line-width"), #raw("radius"), #raw("color"), seamless at any
+      angle; redrawn #raw("bricks").
+    - *Banners* — #cmd[banner-tri] #raw("style: \"arrondi\"") (arabic-exam-kit
+      variant) and #cmd[banner-tri-bis] (the kit exercise ribbon); both
+      take #raw("arrows: n").
+    - *Dedication frame* — #cmd[rosettebox] / #cmd[cadre-rosette] and the
+      #cmd[rosette-pages] page frame, LTR/RTL, content-adaptive.
+    - *Polaroid* — the photo zone is now a writable content area
+      (#raw("photo-fill"), #raw("photo-height"), reliable #raw("width")).
+
+    #v(0.4em)
+    #text(weight: "bold", size: 0.95em)[Already in the 0.2.0 base cut —]
+    - *Meters & classroom pictos* — #cmd[meter] / #cmd[difficulty]
+      (battery, speedo, chrono / #cmd[pictochrono], wifi, cible),
+      #cmd[competence-crayon], #cmd[level-counter], #cmd[tkzpicto],
+      #cmd[pictocible], #cmd[pictoskills]; plus #cmd[sale-poster],
+      #cmd[highway-sign], #cmd[bicolor-title] and the nine #cmd[mark]
+      kinds (highlight…fan) with #cmd[highlight-formula] /
+      #cmd[highlight-text].
+    - *Ornaments* — the whole CTAN #raw("pgfornament") vector bank
+      (#cmd[pgfornament]), 19 drawn motifs + #cmd[glyph-motif], the
+      #cmd[ornatebox] motif frame and its plates (#cmd[khatambox],
+      #cmd[mihrabbox], #cmd[arabesquebox], #cmd[mosaicbox],
+      #cmd[fleuronbox]), #cmd[lacebox] rough rules, #cmd[flagbox]
+      ribbon-on-rule, #cmd[boardbox] grid strokes.
+    - *Frames & page frames* — #cmd[ornate-pages], #cmd[spiral-binding] /
+      #cmd[bound-page], #cmd[book-cover] (nine styles incl.
+      #raw("scatter")), the paper stocks (#cmd[torn-note],
+      #cmd[ruled-sheet], #cmd[stamp-card], #cmd[grid-note],
+      #cmd[index-card], #cmd[deckle-tag], #cmd[notepad],
+      #cmd[lesson-card]) and the page frames of this cut
+      (#cmd[plank-pages], #cmd[torn-pages], #cmd[coil-pages],
+      #cmd[volute-pages], #cmd[rosette-pages]). Every one of them is
+      RTL-aware: bodies align to #raw("start"), i.e. right under RTL,
+      unless you align them explicitly.
+  ]
 })
 
 // ===========================================================================
@@ -207,7 +285,7 @@ have them: xkcd Script, Bevan, Comic Neue, Tajawal, Lalezar.
 
 == A first document
 
-#demo(`#import "faboxyst/lib.typ": *
+#demo(`#import "@preview/faboxyst:0.2.0": *
 #show: faboxyst.with(
   theme: themes.notebook,
 )
@@ -283,6 +361,15 @@ To find something fast:
       ("filebox / stubbox / stackbox", [folder tabs, ticket stub, stacked sheets]),
       ("calloutbox / tapebox / chalkbox / markerbox", [speech bubble, washi, slate, whiteboard]),
       ("screwbox", [plaque held by 1–4 corner screws]),
+      ("plankbox / pancarte", [wooden sign: two leaning planks, torn ends, knot and grain]),
+      ("tornpage / page-dechiree", [paper note with a fractal-torn bottom edge]),
+      ("coilbox / cahier", [spiral notebook: pink frame, punch holes, 3D coils]),
+      ("gelbox / bouton", [glossy aqua button: gel gradient, gloss cap, ball]),
+      ("ogeebox / frisebox / medallion", [teal-and-gold ogee banners, girih frieze, scalloped medallions]),
+      ("volutebox / volute-pages", [blush stationery frame, chamfered rules, ink volutes]),
+      ("parchemin / lettre", [old-letter scroll: rolls, deckle sheet, signing ribbon]),
+      ("insetbox / boite-creusee", [rounded box with a shadowed-style inner shadow]),
+      ("relief", [inner-shadow rims: sunken (creusé) or raised (bombé)]),
       ("faboxyst", [apply a theme (`#show: …`)]),
     ).map(((n, d)) => (
       text(font: MONO, size: 0.76em, n),
@@ -957,6 +1044,9 @@ are preferred for Arabic; otherwise DejaVu. Lalezar has no bold cut —
 
 #include "manual-extra.typ"
 #include "manual-gallery.typ"
+#include "manual-ornate.typ"
+#include "manual-covers.typ"
+#include "manual-lace.typ"
 
 = Option index <fabox-opts>
 
@@ -1071,11 +1161,26 @@ types; `float cm` means a number of centimetres.
   #cmd[circuitbox] · #cmd[keybox] · #cmd[ringbox] · #cmd[punchbox]\
   #cmd[plannerbox] · #cmd[filebox] · #cmd[stubbox] · #cmd[stackbox]\
   #cmd[calloutbox] · #cmd[tapebox] · #cmd[chalkbox] · #cmd[markerbox]\
-  #cmd[screwbox]
+  #cmd[screwbox] · #cmd[plankbox] · #cmd[pancarte] · #cmd[tornpage]\  #cmd[page-dechiree] · #cmd[coilbox] · #cmd[cahier]\  #cmd[gelbox] · #cmd[bouton] · #cmd[ogeebox] · #cmd[banniere] · #cmd[frisebox] · #cmd[frise] · #cmd[medallion]\  #cmd[volutebox] · #cmd[cadre-volute] · #cmd[volute-pages] · #cmd[parchemin] · #cmd[lettre]\  #cmd[insetbox] · #cmd[boite-creusee] · #cmd[relief]
+
+  #v(0.45em)
+  *Ornate frames*\
+  #cmd[ornatebox] · #cmd[khatambox] · #cmd[zellijbox] · #cmd[arabesquebox]\
+  #cmd[mihrabbox] · #cmd[mosaicbox] · #cmd[fleuronbox] · #cmd[ornate-pages]\
+  #cmd[flagbox] · #cmd[khatam-badge] · #cmd[sash-shape] · #cmd[plank-pages]\
+  #cmd[torn-pages] · #cmd[coil-pages]\
+  #cmd[motifs] · #cmd[ornament] · #cmd[glyph-motif] · #cmd[image-motif]\
+  #cmd[tint] · #cmd[turned]
+
+  #v(0.45em)
+  *Pictos & meters*\
+  #cmd[meter] · #cmd[difficulty] · #cmd[pictochrono] · #cmd[tkzpicto]\
+  #cmd[competence-crayon] · #cmd[banner-tri] · #cmd[sale-poster]\
+  #cmd[bicolor-title] · #cmd[highway-sign] · #cmd[level-counter]
 
   #v(0.45em)
   *Inline*\
-  #cmd[highlight] · #cmd[felt] · #cmd[mark] · #cmd[is-rtl]
+  #cmd[highlight] · #cmd[felt] · #cmd[mark] · #cmd[highlight-formula] · #cmd[is-rtl]
 ])
 
 = Troubleshooting
@@ -1089,7 +1194,7 @@ types; `float cm` means a number of centimetres.
   ("RTL after a show", "—", [set text(dir: rtl) — or themes.arabic — before the boxes]),
   ("theme not applied", "—", [the show rule must wrap the boxes]),
   ("torn-note(tape: true)", "—", [tape is auto | none | dict | array]),
-  ("callout white bar", "—", [fixed in 0.4.0: the chord is covered, not stroked]),
+  ("callout white bar", "—", [the chord is covered, not stroked]),
   ("numbox plaque overflow", "—", [the square is clamped to the frame height (and width)]),
   ("RTL ticket digits", "—", [ticket converts Arabic-Indic / Persian digits to 0–9]),
   ("sashbox rough invisible", "—", [pass rough: true; the ink is a closed silhouette]),
@@ -1101,7 +1206,9 @@ types; `float cm` means a number of centimetres.
     Box families follow *tcolorbox* by Thomas F. Sturm. The wobble is a
     Rough.js / TikZ sketch port with a bit-exact clone of PGF’s PRNG.
     jotter-polylux (Andreas Kröpelin, MIT) inspired the sloppy frame and
-    the post-it fasteners. Optional faces if installed: xkcd Script, Bevan,
+    the post-it fasteners. The three example SVGs in `examples/assets/`
+    come from fancy-frames (Daniel Ayala, MIT-0) and only demonstrate
+    `image-motif`. Optional faces if installed: xkcd Script, Bevan,
     Comic Neue, Tajawal, Lalezar (OFL).
   ])
 

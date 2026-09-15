@@ -1,5 +1,5 @@
 // New textbook plates — included by manual.typ after manual-extra.typ.
-#import "/lib.typ": *
+#import "@preview/faboxyst:0.2.0": *
 
 #let ACCENT = rgb("#1772B2")
 #let ACCENT-SOFT = rgb("#E8F2FA")

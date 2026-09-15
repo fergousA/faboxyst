@@ -1,11 +1,13 @@
 // ===========================================================================
 //  faboxyst — coloured boxes for Typst, in the spirit of tcolorbox.
 //
-//    #import "faboxyst/lib.typ": *
+//    #import "@preview/faboxyst:0.2.0": *
 //    #show: faboxyst.with(theme: themes.notebook)
 //
 //    #fabox(title: [Note])[A titled box.]
 //    #tip[A semantic tip.]
+//    #khatambox(title: [تمرين], badge: [1])[An ornate plate.]
+//    #flagbox(title: [Note])[A title hanging from a rod.]
 //
 //  Typst 0.15.x · uses the fonts installed on the system.
 // ===========================================================================
@@ -21,6 +23,9 @@
 #import "src/swooshbox.typ": swooshbox
 #import "src/circuitbox.typ": circuitbox
 #import "src/keybox.typ": keybox
+#import "src/lace.typ": lace
+#import "src/lacebox.typ": lacebox
+#import "src/pgfornament.typ": pgfornament
 #import "src/ringbox.typ": ringbox
 #import "src/punchbox.typ": punchbox
 #import "src/plannerbox.typ": plannerbox
@@ -30,6 +35,33 @@
 #import "src/calloutbox.typ": calloutbox
 #import "src/tapebox.typ": tapebox
 #import "src/boardbox.typ": boardbox, chalkbox, markerbox, bb-colours
+#import "src/plankbox.typ": plankbox, pancarte, plank-colours, plank-pages
+#import "src/tornpage.typ": tornpage, page-dechiree, torn-pages
+#import "src/coilbox.typ": coilbox, cahier, coil-colours, coil-pages
+#import "src/gelbox.typ": gelbox, bouton
+#import "src/engine.typ": relief, insetbox, boite-creusee
+#import "src/ogeebox.typ": ogeebox, banniere, frisebox, frise, medallion, rosette, girih, ogee-colours
+#import "src/volutebox.typ": volutebox, cadre-volute, volute-pages, volute-colours, flourish, spiral-pts, ink-pts
+#import "src/parchemin.typ": parchemin, lettre, scroll-colours
+#import "src/fills.typ": halftone, trame, tikzpattern, motif-tikz
+#import "src/vintage.typ": vintageframe, cadre-vintage, vintagebox, plaque-vintage
+#import "src/programme.typ": (
+  leconbox, lecon, lecon-reset, lecon-counter, prog-colours,
+  pinbox, epingle, brushbox, pinceau, matierebox, cartouche,
+  arc-pts, poly-pts, round-poly,
+)
+#import "src/meter.typ": meter, difficulty, pictochrono
+#import "src/pictos.typ": (
+  tkzpicto, competence-crayon, level-counter,
+  niveaudiffexos, pictocible, pictoskills, bicolor-title,
+  banner-tri, banner-tri-bis, highway-sign, sale-poster,
+  tcbwhiteboard, tcboxnotebook, smooth-pts,
+)
+#import "src/rosette.typ": (
+  rosettebox, cadre-rosette, rosette-pages,
+  rosette-ink, rosette-gold, rosette-leaf,
+)
+#import "src/cover.typ": book-cover
 #import "src/screwbox.typ": screwbox
 #import "src/sashbox.typ": sashbox, ruban
 #import "src/notebook.typ": notebook-box, notebook-box-clean
@@ -37,6 +69,7 @@
   sloppy-box, post-it, vignette, spread-box,
   ticket, folder, terminal, neon, polaroid,
   mark, hl, mark-emph, MARKS,
+  highlight-formula, highlight-text, surligner-formule, surligner-texte,
   flag-ribbon, speed-bar, banner-3d,
   spiral-binding, bound-page,
 )
@@ -48,6 +81,17 @@
   sb-underline, sb-divider,
   highlight as felt,
 )
+#import "src/ornament.typ": (
+  motifs, ornament, ornament-palette, default-palette, make-palette,
+  glyph-motif, content-motif, image-motif, tint, turned,
+)
+#import "src/ornate.typ": (
+  ornatebox, khatambox, zellijbox, arabesquebox, mihrabbox, mosaicbox,
+  fleuronbox, ornate-pages, khatam-badge, sash-shape,
+)
+#import "src/flagbox.typ": flagbox
+#import "src/watermark.typ": with-watermark, paint-watermark
+#import "src/bubble.typ": speech-bubble, joined-bubbles, five-w
 
 // ---------------------------------------------------------------------------
 //  setup — apply a theme without taking over the page

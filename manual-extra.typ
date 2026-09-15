@@ -2,7 +2,7 @@
 // `#include` evaluates this file in its own scope, so the package and
 // the doc helpers are imported / redefined here.
 
-#import "/lib.typ": *
+#import "@preview/faboxyst:0.2.0": *
 
 #let ACCENT = rgb("#1772B2")
 #let ACCENT-SOFT = rgb("#E8F2FA")
@@ -377,6 +377,66 @@ full-width banner.
     align(center, speed-bar(height: 1.05cm, dots: ())[no dots])
   })
 
+= Classroom banners <banners>
+
+Two nested-chevron banners ported from the classroom toolset (TkZ
+`tkzBannerTri` and the arabic-exam-kit exercise ribbon). Both mirror
+under RTL and both take `arrows:` to stack as many layers as you like.
+
+== The chevron banner: banner-tri
+
+#fn("banner-tri", "banner-tri(body, title: none, colour:, fill:, fill-b:, ink:, arrows: 3, tip:, step:, height:, width:, size:, style: \"pointu\", round:, body-round:, direction: auto)")
+
+A trapezoid panel carries the body while `arrows` nested chevrons sit on
+the leading edge — left with the tip pointing right in LTR, mirrored in
+RTL. The text is *not* slanted. `style: "arrondi"` softens every tip and
+the panel with Bézier fillets (the arabic-exam-kit header look).
+
+#params(
+  ("arrows", "int  (3)", [number of stacked chevrons / arrow layers]),
+  ("tip, step", "length", [chevron point depth and layer stagger]),
+  ("style", "\"pointu\" | \"arrondi\"", [sharp tips or rounded (kit) variant]),
+  ("round, body-round", "length (auto)", [fillet radii of the arrondi style]),
+  ("title / body", "content", [leading label and trailing panel text]),
+)
+
+#demo(`#banner-tri(title: [Devoir 4], arrows: 4)[Pour mardi prochain]
+#banner-tri(style: "arrondi", colour: rgb("#1B5E20"))[Version arrondie]`.text,
+  [#banner-tri(title: [Devoir 4], arrows: 4)[Pour mardi prochain]
+   #v(3pt)
+   #banner-tri(style: "arrondi", colour: rgb("#1B5E20"))[Version arrondie]])
+
+== The exercise ribbon: banner-tri-bis
+
+#fn("banner-tri-bis", "banner-tri-bis(body, title:, points:, colour:, ink:, width:, ribbon-width:, arrows: 3, arrow-gap:, gap:, pad-x:, pad-y:, size:, style: \"arrondi\", round:, direction: auto)")
+
+The arabic-exam-kit `exam-exercise-box` layout: a compact ribbon of
+`arrows` rounded layers (rounded wedge, rounded trailing edge) that hugs
+its `title : (points)` label and seats *above* the body, on the leading
+edge — right in RTL, left in LTR. The body flows below at full width.
+
+#params(
+  ("arrows", "int  (3)", [stacked rounded layers of the ribbon]),
+  ("arrow-gap", "length (2.5mm)", [stagger between the layers]),
+  ("ribbon-width", "auto | length", [auto hugs the label]),
+  ("points", "content", [the mark shown as “title : (points)”]),
+  ("gap", "length (0.55em)", [daylight between ribbon and body]),
+)
+
+#demo(`#banner-tri-bis(title: [Exercice 3], points: [2,5 pts])[
+  Calculer l'aire du domaine.]`.text,
+  [#banner-tri-bis(title: [Exercice 3], points: [2,5 pts])[
+    Calculer l'aire du domaine.]])
+
+Under `dir: rtl` the same call puts the ribbon on the right, wedge to
+the left, and right-aligns the body:
+
+#demo(`#set text(lang: "ar", dir: rtl)
+#banner-tri-bis(title: [التمرين 2], points: [3 ن])[
+  حل المعادلة في مجهول واحد.]`.text,
+  [#text(lang: "ar", dir: rtl)[#banner-tri-bis(title: [التمرين 2], points: [3 ن])[
+    حل المعادلة في مجهول واحد.]]])
+
 = Inline marks
 
 #fn("mark", `mark(body, kind: "highlight", colour: auto, …)`)
@@ -404,6 +464,20 @@ full-width banner.
     #h(0.3em) #mark(kind: "fan")[fan]
     #h(0.3em) #felt(ink: "green")[felt green]
     #h(0.3em) #felt(ink: "pink")[felt pink] ])
+
+
+Past a single line, #cmd[mark] and #cmd[highlight] no longer clip their
+canvas: they fall back to the native per-line elements, so a mark can
+run over a whole paragraph.
+
+#demo(`#mark(kind: "scribble", colour: rgb("#E4572E"))[
+  Une soulignement griffonné qui court sur plusieurs lignes : le tracé
+  suit chaque ligne du paragraphe plutôt que de découper un canevas
+  unique, exactement comme le surlignage natif de Typst.]`.text,
+  [#mark(kind: "scribble", colour: rgb("#E4572E"))[
+    Un soulignement griffonné qui court sur plusieurs lignes : le tracé
+    suit chaque ligne du paragraphe plutôt que de découper un canevas
+    unique, exactement comme le surlignage natif de Typst.]])
 
 = Style catalogue <styles>
 
