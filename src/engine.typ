@@ -3,17 +3,19 @@
 //
 //  Reimplements the TikZ/PGF `sketch` decoration: every path is resampled
 //  and offset perpendicular to itself, so lines look hand-drawn. The hot
-//  loop lives in a Rust WASM plugin (assets/sketch.wasm) which also carries
-//  a bit-exact clone of PGF's PRNG, so a given seed always draws the same
-//  wobble.
+//  loop is pure Typst (src/sketchcore.typ): a deterministic PRNG, so a given
+//  seed always draws the same wobble. Pen strokes ("vintage" mode) are computed
+//  by nibart (antique.typ).
 //
 //  Most users never import this directly — see blocks.typ / lib.typ.
 // ===========================================================================
 
 #import "@preview/cetz:0.5.2"
 #import cetz.draw
+#import "antique.typ": nib-stroke, polyline-path
+#import "theme.typ": theme-state
 
-#let plugin-handle = plugin("../assets/sketch.wasm")
+#import "sketchcore.typ" as core
 
 /// Default decoration parameters (PGF's own defaults).
 #let DEFAULTS = (
@@ -41,41 +43,51 @@
 /// Run the sketch decoration over a polyline given in canvas units (cm).
 #let sketch-points(pts, seed: 1, closed: false, ..opt) = {
   let o = DEFAULTS + opt.named()
-  let flat = ()
-  for p in pts {
-    flat.push(fmt(p.at(0) * PT-PER-CM))
-    flat.push(fmt(p.at(1) * PT-PER-CM))
-  }
-  let params = (
-    o.segment, o.amplitude, o.randomness, o.wavelength,
-    seed, if closed { 1 } else { 0 }, o.epsilon,
-  ).map(fmt).join(" ")
-
-  let out = str(plugin-handle.decorate(bytes(params), bytes(flat.join(" "))))
-  if out.trim() == "" { return pts }
-  let nums = out.split(" ").map(float)
-  range(0, int(nums.len() / 2)).map(i => (
-    nums.at(2 * i) / PT-PER-CM,
-    nums.at(2 * i + 1) / PT-PER-CM,
-  ))
+  let q = pts.map(p => (p.at(0) * PT-PER-CM, p.at(1) * PT-PER-CM))
+  let out = core.decorate(q, segment: o.segment, amplitude: o.amplitude, randomness: o.randomness,
+    wavelength: o.wavelength, seed: seed, closed: closed)
+  out.map(p => (p.at(0) / PT-PER-CM, p.at(1) / PT-PER-CM))
 }
 
 /// PGF's `rand`, exposed: `n` values in [-1, 1] for a given seed.
-#let randoms(seed, n) = {
-  let out = str(plugin-handle.randoms(bytes(fmt(seed) + " " + fmt(n))))
-  if out.trim() == "" { return () }
-  out.split(" ").map(float)
-}
+#let randoms(seed, n) = core.randoms(seed, n)
 
 // ---------------------------------------------------------------------------
 //  drawing
 // ---------------------------------------------------------------------------
 
+/// Shared vintage branch for the stroke renderers: a plain fill plus a
+/// nib-drawn outline, in the stroke's own paint (native colours kept).
+#let _vintage-draw(q, closed, sty, vintage-pen: none) = {
+  let fill = sty.at("fill", default: none)
+  let stroke = sty.at("stroke", default: none)
+  if fill != none {
+    draw.line(..q, close: closed, fill: fill, stroke: none)
+  }
+  if stroke == none { return }
+  let paint = stroke.at("paint", default: sty.at("paint", default: black))
+  let th = stroke.at("thickness", default: sty.at("thickness", default: 1pt)) / 1cm
+  let pen = if vintage-pen == none { (th * 1.7, th * 0.55, 24deg) } else { vintage-pen }
+  nib-stroke(polyline-path(q), pen: pen, closed: closed, fill: paint)
+}
+
 /// A hand-drawn polyline. Extra named args go straight to CeTZ's `line`.
-#let s-line(pts, seed: 1, closed: false, opts: (:), ..style) = {
+///
+/// `vintage: true` renders the outline with an elliptical nib instead of a
+/// constant-width stroke (the engraved look): the line is kept
+/// straight (the wobble is dropped) and its thickness follows the pen's
+/// angle to the path. The stroke's own `paint` is used, so a box stays in
+/// its native colours.
+#let s-line(pts, seed: 1, closed: false, vintage: false, vintage-pen: none,
+            opts: (:), ..style) = {
   draw.get-ctx(_ => {
-    let q = sketch-points(pts, seed: seed, closed: closed, ..opts)
-    draw.line(..q, close: closed, ..style)
+    let o = if vintage { opts + (amplitude: 0) } else { opts }
+    let q = sketch-points(pts, seed: seed, closed: closed, ..o)
+    if vintage {
+      _vintage-draw(q, closed, style.named(), vintage-pen: vintage-pen)
+    } else {
+      draw.line(..q, close: closed, ..style)
+    }
   })
 }
 
@@ -119,9 +131,11 @@
 })
 
 #let rounded-rect-pts(a, b, radius: 0.3, n: 8) = {
-  let (x0, y0) = (calc.min(a.at(0), b.at(0)), calc.min(a.at(1), b.at(1)))
-  let (x1, y1) = (calc.max(a.at(0), b.at(0)), calc.max(a.at(1), b.at(1)))
-  let r = calc.min(radius, (x1 - x0) / 2, (y1 - y0) / 2)
+  // `a` is the top-left corner, `b` the bottom-right. No comparisons:
+  // lengths may mix units (pt + em), which Typst cannot compare.
+  let (x0, y0) = (a.at(0), a.at(1))
+  let (x1, y1) = (b.at(0), b.at(1))
+  let r = radius
   let corner(cx, cy, a0) = range(n + 1).map(i => {
     let a = (a0 + 90 * i / n) * 1deg
     (cx + r * calc.cos(a), cy + r * calc.sin(a))
@@ -138,9 +152,11 @@
 /// A "plaque" outline: a rectangle whose corners curl INWARD in a quarter
 /// arc, like a hand-drawn certificate border.
 #let plaque-pts(a, b, curl: 0.42, n: 10) = {
-  let (x0, y0) = (calc.min(a.at(0), b.at(0)), calc.min(a.at(1), b.at(1)))
-  let (x1, y1) = (calc.max(a.at(0), b.at(0)), calc.max(a.at(1), b.at(1)))
-  let r = calc.min(curl, (x1 - x0) / 3, (y1 - y0) / 3)
+  // `a` is the top-left corner, `b` the bottom-right. No comparisons:
+  // lengths may mix units (pt + em), which Typst cannot compare.
+  let (x0, y0) = (a.at(0), a.at(1))
+  let (x1, y1) = (b.at(0), b.at(1))
+  let r = curl
   // Each corner is a quarter arc centred OUTSIDE the box, so the edge bows
   // inward towards the middle -- the certificate/plaque look.
   let corner(cx, cy, a0, a1) = range(n + 1).map(i => {
@@ -246,25 +262,11 @@
 //  hatching  (scanline clip against the real outline, holes included)
 // ---------------------------------------------------------------------------
 #let hatch-segments(contours, angle: 45, spacing: 0.16, offset: 0.0) = {
-  let parts = ()
-  for ct in contours {
-    let flat = ()
-    for p in ct {
-      flat.push(fmt(p.at(0) * PT-PER-CM))
-      flat.push(fmt(p.at(1) * PT-PER-CM))
-    }
-    parts.push(flat.join(" "))
-  }
-  let params = (angle, spacing * PT-PER-CM, offset * PT-PER-CM).map(fmt).join(" ")
-  let out = str(plugin-handle.hatch(bytes(params), bytes(parts.join("|"))))
-  if out.trim() == "" { return () }
-  out.split(";").map(seg => {
-    let n = seg.split(" ").map(float)
-    (
-      (n.at(0) / PT-PER-CM, n.at(1) / PT-PER-CM),
-      (n.at(2) / PT-PER-CM, n.at(3) / PT-PER-CM),
-    )
-  })
+  let cs = contours.map(ct => ct.map(p => (p.at(0) * PT-PER-CM, p.at(1) * PT-PER-CM)))
+  core.hatch(cs, angle: angle, spacing: spacing * PT-PER-CM, offset: offset * PT-PER-CM).map(sg => (
+    (sg.at(0).at(0) / PT-PER-CM, sg.at(0).at(1) / PT-PER-CM),
+    (sg.at(1).at(0) / PT-PER-CM, sg.at(1).at(1) / PT-PER-CM),
+  ))
 }
 
 #let s-hatch(contours, angle: 45, spacing: 0.16, offset: 0.0, shrink: 0.10,
@@ -530,12 +532,12 @@
 // ---------------------------------------------------------------------------
 //  Rough.js
 //
-//  A port of the core algorithms from Rough.js 4.6.6 (MIT, Preet Shihn).
-//  Its PRNG, `_line` bowing maths and two-pass ellipse construction are
-//  reproduced exactly, so a given seed draws the same shape as the original
-//  JavaScript. This is a different aesthetic from the PGF `sketch`
-//  decoration above: Rough.js overdraws each edge twice with a bowed Bezier,
-//  which reads more like a felt-tip sketch than a pencil wobble.
+//  Written in pure Typst (src/sketchcore.typ), in the manner of Rough.js
+//  (MIT, Preet Shihn): every edge is overdrawn twice with a bowed Bezier,
+//  ellipses are built from two passes, and the fill styles (hachure,
+//  cross-hatch, zigzag, dots...) roughen their own strokes. A given seed
+//  always draws the same shape. This reads more like a felt-tip sketch than
+//  the pencil wobble of the `sketch` decoration above.
 // ---------------------------------------------------------------------------
 
 /// Rough.js drawing options.
@@ -551,61 +553,40 @@
   seed: 1,
 )
 
-#let _rough-params(o) = (
-  o.max-offset, o.roughness, o.bowing, o.curve-tightness, o.curve-fitting,
-  o.curve-step-count, if o.preserve-vertices { 1 } else { 0 },
-  if o.disable-multi-stroke { 1 } else { 0 }, o.seed,
-).map(fmt).join(" ")
+// rough options in pt, as the core expects them
+#let _ro(o) = o
 
-#let _parse-paths(out) = {
-  if out.trim() == "" { return () }
-  out.split(";").map(seg => {
-    let n = seg.split(" ").map(float)
-    range(0, int(n.len() / 2)).map(i => (
-      n.at(2 * i) / PT-PER-CM, n.at(2 * i + 1) / PT-PER-CM,
-    ))
-  })
-}
+#let _back(passes) = passes.map(p => p.map(q => (q.at(0) / PT-PER-CM, q.at(1) / PT-PER-CM)))
+#let _pt-pts(pts) = pts.map(p => (p.at(0) * PT-PER-CM, p.at(1) * PT-PER-CM))
 
 /// Rough.js polyline: returns a LIST of point-lists (usually two passes).
 #let rough-points(pts, closed: false, ..opt) = {
   let o = ROUGH + opt.named()
-  let flat = ()
-  for p in pts {
-    flat.push(fmt(p.at(0) * PT-PER-CM))
-    flat.push(fmt(p.at(1) * PT-PER-CM))
-  }
-  let params = _rough-params(o) + " " + (if closed { "1" } else { "0" })
-  _parse-paths(str(plugin-handle.rough_poly(
-    bytes(params), bytes(flat.join(" ")))))
+  _back(core.rough-poly(_pt-pts(pts), o, closed: closed))
 }
 
 /// Rough.js ellipse outline, as a list of point-lists.
 #let rough-ellipse-points(centre, w, h, ..opt) = {
   let o = ROUGH + opt.named()
-  let params = _rough-params(o) + " " + (
-    centre.at(0) * PT-PER-CM, centre.at(1) * PT-PER-CM,
-    w * PT-PER-CM, h * PT-PER-CM,
-  ).map(fmt).join(" ")
-  _parse-paths(str(plugin-handle.rough_ellipse(bytes(params))))
+  _back(core.rough-ellipse(centre.at(0) * PT-PER-CM, centre.at(1) * PT-PER-CM, w * PT-PER-CM, h * PT-PER-CM, o))
 }
 
 /// Rough.js open curve through the given points.
 #let rough-curve-points(pts, ..opt) = {
   let o = ROUGH + opt.named()
-  let flat = ()
-  for p in pts {
-    flat.push(fmt(p.at(0) * PT-PER-CM))
-    flat.push(fmt(p.at(1) * PT-PER-CM))
-  }
-  _parse-paths(str(plugin-handle.rough_curve_fn(
-    bytes(_rough-params(o)), bytes(flat.join(" ")))))
+  _back(core.rough-curve(_pt-pts(pts), o))
 }
 
 // --- drawing wrappers ------------------------------------------------------
 
 /// Draw a Rough.js polyline. `fill` fills the first pass only.
-#let r-line(pts, closed: false, fill: none, opts: (:), ..style) = {
+/// `vintage: true` draws the outline with an elliptical nib (straight
+/// path, engraved thickness) in the stroke's own paint.
+#let r-line(pts, closed: false, fill: none, vintage: false, vintage-pen: none,
+            opts: (:), ..style) = {
+  if vintage {
+    return _vintage-draw(pts, closed, (fill: fill) + style.named(), vintage-pen: vintage-pen)
+  }
   let passes = rough-points(pts, closed: closed, ..opts)
   let out = ()
   if fill != none and passes.len() > 0 {
@@ -618,8 +599,13 @@
   out.join()
 }
 
-/// Draw a Rough.js ellipse.
-#let r-ellipse(centre, w, h, fill: none, opts: (:), ..style) = {
+/// Draw a Rough.js ellipse. `vintage: true` as for #r-line.
+#let r-ellipse(centre, w, h, fill: none, vintage: false, vintage-pen: none,
+               opts: (:), ..style) = {
+  if vintage {
+    return _vintage-draw(ellipse-pts(centre, w / 2, h / 2), true,
+      (fill: fill) + style.named(), vintage-pen: vintage-pen)
+  }
   let passes = rough-ellipse-points(centre, w, h, ..opts)
   let out = ()
   if fill != none and passes.len() > 0 {
@@ -637,8 +623,12 @@
 /// Draw a Rough.js rectangle.
 #let r-rect(a, b, ..rest) = r-line(rect-pts(a, b), closed: true, ..rest)
 
-/// Draw a Rough.js open curve.
-#let r-curve(pts, opts: (:), ..style) = {
+/// Draw a Rough.js open curve. `vintage: true` as for #r-line.
+#let r-curve(pts, vintage: false, vintage-pen: none, opts: (:), ..style) = {
+  if vintage {
+    return _vintage-draw(resample-pts(pts, step: 0.4, closed: false),
+      false, style.named(), vintage-pen: vintage-pen)
+  }
   let passes = rough-curve-points(pts, ..opts)
   passes.map(p => draw.line(..p, ..style)).join()
 }
@@ -652,18 +642,7 @@
 /// Fill geometry for a set of contours: returns a list of polylines.
 #let rough-fill-points(contours, style: "hachure", angle: -41, gap: 0.28,
                        seed: 1) = {
-  let parts = ()
-  for ct in contours {
-    let flat = ()
-    for p in ct {
-      flat.push(fmt(p.at(0) * PT-PER-CM))
-      flat.push(fmt(p.at(1) * PT-PER-CM))
-    }
-    parts.push(flat.join(" "))
-  }
-  let params = style + " " + (angle, gap * PT-PER-CM, seed).map(fmt).join(" ")
-  _parse-paths(str(plugin-handle.rough_fill(
-    bytes(params), bytes(parts.join("|")))))
+  _back(core.rough-fill(contours.map(_pt-pts), style, angle, gap * PT-PER-CM, seed))
 }
 
 /// Draw a Rough.js fill inside `contours`. Each fill line is itself roughened.
@@ -692,8 +671,19 @@
 }
 
 /// A filled + stroked Rough.js shape in one call.
+/// `vintage: true` (as for #r-line): plain fill + nib outline per contour.
 #let r-shape(contours, style: "hachure", angle: -41, gap: 0.28, seed: 1,
-             fill: none, stroke: none, weight: 0.8pt, opts: (:)) = {
+             fill: none, stroke: none, weight: 0.8pt, vintage: false,
+             vintage-pen: none, opts: (:)) = {
+  if vintage {
+    let out = ()
+    for ct in contours {
+      out.push(_vintage-draw(ct, true,
+        (fill: if style == "solid" { fill } else { none }, stroke: stroke),
+        vintage-pen: vintage-pen))
+    }
+    return out.join()
+  }
   let out = ()
   if fill != none {
     out.push(r-fill(contours, style: style, angle: angle, gap: gap,
@@ -710,13 +700,8 @@
 /// A rough circular arc. Angles in degrees; `closed` draws the pie wedge.
 #let r-arc(centre, w, h, start, end, closed: false, opts: (:), ..style) = {
   let o = ROUGH + opts
-  let params = _rough-params(o) + " " + (
-    centre.at(0) * PT-PER-CM, centre.at(1) * PT-PER-CM,
-    w * PT-PER-CM, h * PT-PER-CM,
-    start * calc.pi / 180, end * calc.pi / 180,
-    if closed { 1 } else { 0 },
-  ).map(fmt).join(" ")
-  let passes = _parse-paths(str(plugin-handle.rough_arc(bytes(params))))
+  let passes = _back(core.rough-arc(centre.at(0) * PT-PER-CM, centre.at(1) * PT-PER-CM, w * PT-PER-CM, h * PT-PER-CM,
+    start * calc.pi / 180, end * calc.pi / 180, closed, o))
   passes.map(p => draw.line(..p, ..style)).join()
 }
 
@@ -816,12 +801,16 @@
   back: white,
   inset: (x: 12pt, y: 10pt),
   width: 100%,
-) = layout(avail => {
+) = context layout(avail => {
+  let print-mode = theme-state.get().mode == "print"
+  let back = if print-mode { white } else { back }
+  if print-mode { set text(fill: black) }
   let W = if type(width) == ratio { avail.width * width } else { width }
   let inner = block(width: W, inset: inset, body)
   let H = measure(inner).height
   block(width: W, height: H, {
-    place(top + left, rect(width: W, height: H, radius: radius, fill: back))
+    place(top + left, rect(width: W, height: H, radius: radius, fill: back,
+      stroke: if print-mode { 0.9pt + black } else { none }))
     place(top + left,
       relief(W, H, mode: "sunken", radius: radius, depth: blur,
         strength: strength))

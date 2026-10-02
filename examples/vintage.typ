@@ -1,6 +1,6 @@
 // faboxyst — vintage frames: the eight scrollwork frames of the SVG sheet
 // and the six bracket plaques of the EPS sheet, redrawn as Typst vectors.
-#import "@preview/faboxyst:0.2.0": *
+#import "../lib.typ": *
 
 #set page(width: 17cm, height: 24cm, margin: 1.2cm, fill: rgb("#F4F6F8"))
 #set text(size: 11pt, fill: rgb("#222222"))

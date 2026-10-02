@@ -18,6 +18,9 @@
 // ===========================================================================
 
 #import "fabox.typ": is-rtl
+#import "antique.typ": vintage-pts
+#import "engine.typ": rounded-rect-pts
+#import "theme.typ": theme-state
 #import "lace.typ": lace as lace-pattern
 
 #let _cm(x) = if type(x) == length { x } else { x * 1cm }
@@ -132,7 +135,11 @@
   colour: auto,
   accent: auto,
   direction: auto,
+  vintage: false,
+  vintage-pen: none,
 ) = context {
+  let print-mode = theme-state.get().mode == "print"
+  if print-mode { set text(fill: black) }
   let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
   let dir = if rtl { std.rtl } else { ltr }
   let pw = page.width
@@ -170,7 +177,96 @@
   let trail = if rtl { left } else { right }
 
   // =========================================================================
-  if style == "guilloche" {
+  // Print mode gives every cover style the same ink-friendly cover grammar:
+  // white page, fine black frame, restrained gray rules and centered text.
+  // The selected art style remains completely untouched in normal mode.
+  if print-mode {
+    place(top + left, dx: -ml, dy: -mt,
+      block(width: pw, height: ph, clip: true, {
+        set text(dir: dir)
+        place(top + left, rect(width: pw, height: ph, fill: white))
+        let pad = 0.85cm
+        place(top + left, dx: pad + 0.08cm, dy: pad + 0.10cm,
+          rect(width: pw - 2 * pad, height: ph - 2 * pad,
+            radius: 3pt, fill: luma(185)))
+        place(top + left, dx: pad, dy: pad,
+          rect(width: pw - 2 * pad, height: ph - 2 * pad,
+            radius: 3pt, fill: white, stroke: 1.1pt + black))
+        if series != none {
+          place(top + center, dy: 1.7cm,
+            align(center, text(size: 10pt, fill: black, weight: "bold", series)))
+        }
+        if badge != none {
+          let bx = if rtl { pw - 2.0cm } else { 2.0cm }
+          place(top + left, dx: bx, dy: 2.3cm,
+            circle(radius: 0.42cm, fill: white,
+              stroke: 0.8pt + luma(140)))
+          place(top + left, dx: bx, dy: 2.3cm,
+            box(width: 0.84cm, height: 0.84cm,
+              align(center + horizon, text(size: 12pt, fill: black, badge))))
+        }
+        if badge-label != none {
+          place(top + center, dy: 3.25cm,
+            align(center, text(size: 7pt, fill: luma(90), badge-label)))
+        }
+        let title-y = ph * 0.31
+        place(top + left, dx: pad + 0.55cm, dy: title-y,
+          block(width: pw - 2 * pad - 1.1cm, {
+            set align(center)
+            if lead-in != none {
+              text(size: 11pt, fill: luma(90), lead-in)
+              v(0.35cm)
+            }
+            if title != none {
+              text(size: 34pt, weight: "bold", fill: black, title)
+            }
+            if subtitle != none {
+              v(0.35cm)
+              text(size: 18pt, fill: black, style: "italic", subtitle)
+            }
+            v(0.6cm)
+            line(length: calc.min(7cm, pw * 0.42),
+              stroke: (paint: black, thickness: 1.1pt))
+            if level != none or year != none {
+              v(0.45cm)
+              text(size: 11pt, fill: luma(70),
+                [#if level != none { level }#if level != none and year != none { h(0.5cm) }#if year != none { year }])
+            }
+            if formula != none {
+              v(0.45cm)
+              text(size: 10pt, fill: luma(80), formula)
+            }
+          }))
+        if author != none or author-label != auto {
+          place(bottom + center, dy: -5cm,
+            align(center, stack(dir: ttb, spacing: 0.12cm,
+              if author-label != auto and author-label != none {
+                text(size: 8pt, fill: luma(90), author-label)
+              },
+              if author != none { text(size: 18pt, fill: black, weight: "bold", author) },
+            )))
+        }
+        if topics != none {
+          place(bottom + center, dy: -3.5cm,
+            align(center, text(size: 9pt, fill: luma(70), topics)))
+        }
+        if publisher != none or place-line != none {
+          place(bottom + center, dy: -2.4cm,
+            block(width: pw - 2.4cm, {
+              set align(center)
+              if publisher != none { text(size: 10pt, weight: "bold", fill: black, publisher) }
+              if place-line != none {
+                v(0.08cm)
+                text(size: 8pt, fill: luma(80), place-line)
+              }
+            }))
+        }
+        if note != none {
+          place(bottom + center, dy: -1.25cm,
+            align(center, text(size: 8pt, style: "italic", fill: luma(80), note)))
+        }
+      }))
+  } else if style == "guilloche" {
     place(top + left, dx: -ml, dy: -mt, block(width: pw, height: ph, clip: true, {
       set text(dir: dir)
       place(top + left, rect(width: pw, height: ph, fill: col))
@@ -1706,5 +1802,16 @@
           }
         }))
     }))
+  }
+  if vintage {
+    let fl = 0.45cm
+    place(top + left, dx: -ml + fl, dy: -mt + fl,
+      vintage-pts(rounded-rect-pts((0pt, 0pt), (pw - 2 * fl, ph - 2 * fl),
+        radius: 0pt), acc, 1.4pt, closed: true,
+        vintage-pen: vintage-pen))
+    place(top + left, dx: -ml + fl * 2, dy: -mt + fl * 2,
+      vintage-pts(rounded-rect-pts((0pt, 0pt), (pw - 4 * fl, ph - 4 * fl),
+        radius: 0pt), acc, 0.7pt, closed: true,
+        vintage-pen: vintage-pen))
   }
 }

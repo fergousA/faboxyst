@@ -11,6 +11,10 @@
 
 // same-name parameter inside gelbox shadows the function; keep an alias
 #import "engine.typ": relief
+#import "engine.typ": rounded-rect-pts
+#import "antique.typ": vintage-pts
+
+#import "theme.typ": theme-state
 
 #let _relief-fn = relief
 
@@ -30,7 +34,18 @@
   width: auto,
   text-fill: white,
   text-size: 1em,
+  vintage: false,      // the rim engraved with a nib
+  vintage-pen: none,
+  body-offset-x: 0pt,
+  body-offset-y: 0pt,
 ) = context {
+  let print-mode = theme-state.get().mode == "print"
+  let base = if print-mode { white } else { base }
+  let ball = if print-mode { none } else { ball }
+  let gloss = if print-mode { false } else { gloss }
+  // Keep the face relief in print; its black/white bevel remains monochrome.
+  let text-fill = if print-mode { black } else { text-fill }
+
   let ix = inset.at("x", default: 1.1em)
   let iy = inset.at("y", default: 0.5em)
   let label = text(fill: text-fill, weight: "bold", size: text-size, body)
@@ -57,9 +72,15 @@
       }
       // the gel face: light at the top, deep at the bottom
       place(top + left,
-        rect(width: W, height: H, radius: rad, stroke: 1.1pt + rim,
+        rect(width: W, height: H, radius: rad,
+          stroke: if vintage { none } else { 1.1pt + rim },
           fill: gradient.linear(base.lighten(38%), base, base.darken(24%),
             angle: 90deg)))
+      if vintage {
+        place(top + left,
+          vintage-pts(rounded-rect-pts((0pt, 0pt), (W, H), radius: rad, n: 14),
+            rim, 1.1pt, vintage-pen: vintage-pen))
+      }
       // inner relief (bevel by default)
       if relief == "raised" or relief == "sunken" {
         place(top + left, _relief-fn(W, H, mode: relief, radius: rad,
@@ -93,8 +114,7 @@
             fill: white.transparentize(25%)))
       }
       // the lettering, with a faint dark copy for depth
-      place(top + left, dy: 0.8pt,
-        block(width: W, height: H,
+      place(top + left, dy: (0.8pt) + body-offset-y, dx: body-offset-x, block(width: W, height: H,
           align(center + horizon,
             text(fill: base.darken(60%), weight: "bold", size: text-size, body))))
       place(top + left,

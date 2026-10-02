@@ -8,7 +8,7 @@
 //  DejaVu when absent.
 // ===========================================================================
 
-#import "@preview/faboxyst:0.2.0": *
+#import "../lib.typ": *
 
 #set page(width: 17cm, height: auto, margin: 9mm, fill: white)
 #set text(font: ("Amiri", "Noto Naskh Arabic", "DejaVu Serif"), size: 12pt,

@@ -1,6 +1,6 @@
 // faboxyst — the "annual programme" plate: the four boxes of the
 // secondary-school physics programme sheet, rebuilt as vectors.
-#import "@preview/faboxyst:0.2.0": *
+#import "../lib.typ": *
 
 #set page(width: 21cm, height: 29.7cm, margin: 1.4cm, fill: rgb("#F7F7F9"))
 #set text(lang: "ar", dir: rtl, font: "Amiri", size: 13pt)

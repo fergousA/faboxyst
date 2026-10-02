@@ -3,6 +3,8 @@
 #import "meter.typ": meter, difficulty, pictochrono
 #import "boardbox.typ": boardbox, markerbox, chalkbox
 #import "notebook.typ": notebook-box, notebook-box-clean
+#import "antique.typ": vintage-pts
+#import "engine.typ": rounded-rect-pts
 
 #let tcbwhiteboard = markerbox
 #let tcboxnotebook = notebook-box
@@ -58,6 +60,8 @@
   size: 1.0,
   ink: white,
   direction: auto,
+  vintage: false,
+  vintage-pen: none,
 ) = context {
   let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
   let z = size
@@ -77,7 +81,8 @@
     }
     let tab = box(fill: c, inset: (x: 0.22cm * z, y: 0.10cm * z), radius: rad,
       text(fill: ink, weight: "bold", size: 0.92em * z, ttl))
-    let card = box(width: card-w, inset: 0.22cm * z, stroke: 0.6pt + luma(160),
+    let card = box(width: card-w, inset: 0.22cm * z,
+      stroke: if vintage { none } else { 0.6pt + luma(160) },
       radius: 0.04cm, fill: white,
       align(if rtl { right } else { left },
         text(size: 0.85em * z, dir: if rtl { std.rtl } else { ltr }, txt)))
@@ -111,6 +116,11 @@
       let card-x = if rtl { 0cm } else { tab-dx }
       place(top + left, dx: tab-x, dy: y + 0.04cm, it.tab)
       place(top + left, dx: card-x, dy: y + it.th + 0.10cm * z, it.card)
+      if vintage {
+        place(top + left, dx: card-x, dy: y + it.th + 0.10cm * z,
+          vintage-pts(rounded-rect-pts((0pt, 0pt), (card-w, it.ch),
+            radius: 0.04cm), luma(160), 0.6pt, vintage-pen: vintage-pen))
+      }
       y = y + hsec
     }
     let wood = rgb("#E8C07A")
@@ -119,8 +129,15 @@
     } else {
       ((0cm, 0cm), (pw, 0cm), (pw * 0.52, tip))
     }
-    place(top + left, dy: y,
-      polygon(fill: wood, stroke: 0.4pt + wood.darken(25%), ..tip-pts))
+    if vintage {
+      place(top + left, dy: y, polygon(fill: wood, stroke: none, ..tip-pts))
+      place(top + left, dy: y,
+        vintage-pts(tip-pts, wood.darken(25%), 0.4pt, closed: true,
+          vintage-pen: vintage-pen))
+    } else {
+      place(top + left, dy: y,
+        polygon(fill: wood, stroke: 0.4pt + wood.darken(25%), ..tip-pts))
+    }
     let gx = if rtl { width - pw * 0.68 } else { pw * 0.32 }
     place(top + left, dx: gx, dy: y + tip * 0.62,
       polygon(fill: luma(45),
@@ -167,6 +184,133 @@
     }
   })
 })
+
+/// Bicolor title, bignumber version: after the "BigNumber" style of the
+/// simpleslides package, the title *straddles* the chevron boundary — the
+/// text is drawn twice and reassembled from two clipped halves, and each
+/// half takes **the colour of the opposite side**: the part of the text
+/// lying on the leading parallelogram is drawn in `colour-b`, the part on
+/// the trailing one in `colour-a` (override either half with `ink-a` /
+/// `ink-b`).
+///
+/// The box mirrors in RTL: the leading parallelogram (colour-a, and the
+/// `ink-a` half of the text) sits on the right for RTL text, so the same
+/// call writes correct bicolour titles in both directions.
+///
+/// The seam where the two colour regions meet (and the two text inks
+/// switch) is drawn by the `seam` shape — it drives BOTH the background
+/// split and the text clip, so every letter stays readable on its own
+/// side. "slant" (default) reproduces the original chevron edge; the
+/// other shapes bend that line.
+///
+///   direction  auto follows the document; force with ltr / rtl
+///   seam       slant | wavy | s | arc | zigzag | step
+///   seam-amp   amplitude of the seam shape (auto: 0.4 * height),
+///              ignored by "slant" which follows the skew
+#let bicolor-bignum(
+  start,
+  end: none,
+  colour-a: rgb("#1565C0"),
+  colour-b: rgb("#EF6C00"),
+  ink-a: auto,
+  ink-b: auto,
+  height: 0.86cm,
+  width: 100%,
+  skew: 0.42cm,
+  size: 1.0,
+  direction: auto,
+  seam: "slant",
+  seam-amp: auto,
+) = context {
+  let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
+  // default inks: each half of the text wears the colour of the OTHER
+  // side — that is what makes the title read as bicolour
+  let iA = if ink-a == auto { colour-b } else { ink-a }
+  let iB = if ink-b == auto { colour-a } else { ink-b }
+  layout(avail => {
+    let W = if type(width) == ratio { avail.width * width } else { width }
+    let h = height * size
+    let k = skew
+    let mid = W * 0.50
+    let m = x => if rtl { W - x } else { x }   // mirror the geometry in RTL
+    // the seam: where the two colour regions meet (and the two text inks
+    // switch). It drives the background split AND the text clip, so each
+    // letter sits on a background it contrasts with. "slant" reproduces
+    // the original chevron edge; the other shapes bend that line.
+    let amp = if seam-amp == auto { 0.4 * h } else { seam-amp }
+    let off(t) = {
+      if seam == "s" { -amp * calc.cos(calc.pi * t) }
+      else if seam == "wavy" { amp * calc.sin(3 * calc.pi * t) }
+      else if seam == "arc" { amp * calc.sqrt(calc.max(0, 1 - (2 * t - 1) * (2 * t - 1))) }
+      else if seam == "zigzag" { let f = t * 4 - calc.floor(t * 4); amp * (1 - 4 * calc.abs(f - 0.5)) }
+      else if seam == "step" { if t < 0.5 { -amp } else { amp } }
+      else { -k * t }   // "slant" (default) and unknown shapes
+    }
+    let seam-x = y => mid + off(y / h)   // seam x at height y (LTR space)
+    // the leading region (colour-a): everything on the leading side of
+    // the seam, sampled along it (25 segments — smooth at box scale)
+    let A-pts = range(26).map(i => (m(seam-x(h * i / 25)), h * i / 25))
+    A-pts.push((m(0cm), h))
+    A-pts.push((m(0cm), 0cm))
+    box(width: W, height: h + 0.10cm, {
+      // drop shadow (right + bottom slivers, as before)
+      place(top + left, dx: 0.06cm, dy: 0.08cm,
+        rect(width: W, height: h, fill: luma(180), stroke: none))
+      // trailing region (colour-b)
+      place(top + left, rect(width: W, height: h, fill: colour-b, stroke: none))
+      // shadow along the seam
+      place(top + left, dx: 0.06cm, dy: 0.08cm, polygon(fill: luma(180), ..A-pts))
+      // leading region (colour-a), following the seam
+      place(top + left, polygon(fill: colour-a, ..A-pts))
+      // two-tone straddling title (the bignumber technique). The full text
+      // is drawn once in each ink; the leading-ink copy is then clipped to
+      // the A side of the chevron. The clip must follow the SLANTED
+      // boundary (the skew), not a vertical line — a letter sitting on the
+      // seam would otherwise take the colour of the background under it.
+      // Typst has no affine clip, so the boundary is followed band by
+      // band: thin horizontal strips, each cut where the slanted edge
+      // passes through the strip (sub-point staircase).
+      let tAraw = text(fill: iA, weight: "bold", size: 1.02em, start)
+      let tBraw = text(fill: iB, weight: "bold", size: 1.02em, start)
+      let w = measure(tAraw).width
+      let th = measure(tAraw).height
+      let x0 = mid - w / 2
+      let dy0 = (h - th) / 2
+      let tAw = box(width: w + 1pt, tAraw)
+      let tBw = box(width: w + 1pt, tBraw)
+      let bands = calc.max(16, calc.ceil(h / 0.06cm))
+      let bh = h / bands
+      // full trailing-ink text first (underneath, unclipped)
+      place(top + left, dx: x0, dy: 0pt,
+        box(width: w + 1pt, height: h,
+          place(top + left, dx: 0pt, dy: dy0, tBw)))
+      // leading-ink text, clipped band by band to the slanted A side
+      for j in range(bands) {
+        let ytop = j * bh
+        let ex = m(seam-x(ytop + bh / 2))   // the seam's x at the band middle
+        if rtl {
+          place(top + left, dx: ex, dy: ytop,
+            box(width: W - ex, height: bh, clip: true,
+              place(top + left, dx: x0 - ex, dy: dy0 - ytop, tAw)))
+        } else {
+          place(top + left, dx: 0cm, dy: ytop,
+            box(width: ex, height: bh, clip: true,
+              place(top + left, dx: x0, dy: dy0 - ytop, tAw)))
+        }
+      }
+      // optional trailing label, on the colour-b side
+      if end != none {
+        if rtl {
+          place(horizon + left, dx: 0.28cm, dy: -0.04cm,
+            text(fill: iB, weight: "bold", size: 1.02em, end))
+        } else {
+          place(horizon + right, dx: -0.28cm, dy: -0.04cm,
+            text(fill: iB, weight: "bold", size: 1.02em, end))
+        }
+      }
+    })
+  })
+}
 
 /// tkzBannerTri: a trapezoid band + nested chevrons that grow with content.
 ///
@@ -235,6 +379,8 @@
   style: "pointu",     // "pointu" | "arrondi" (the arabic-exam-kit header)
   round: auto,         // fillet radius of the arrow tips in "arrondi"
   body-round: auto,    // fillet radius of the body panel in "arrondi"
+  vintage: false,
+  vintage-pen: none,
 ) = context {
   let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
   let soft = style == "arrondi" or style == "kit"
@@ -307,6 +453,11 @@
         let w = blk + (n-arr - 1 - i) * step-l
         place(top + left, chev(w, shade(i)))
       }
+      if vintage {
+        place(top + left, vintage-pts(
+          if soft { smooth-pts(quad, br) } else { quad },
+          ink2, 1.2pt, closed: true, vintage-pen: vintage-pen))
+      }
       let lab-x = if rtl { W - blk } else { 0cm }
       place(top + left, dx: lab-x, dy: (h - t-m.height) / 2, t-box)
       if has-body {
@@ -347,6 +498,8 @@
   direction: auto,
   style: "arrondi",     // "arrondi" (kit) | "pointu"
   round: auto,
+  vintage: false,
+  vintage-pen: none,
 ) = context {
   let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
   let soft = style == "arrondi" or style == "kit"
@@ -383,9 +536,16 @@
       let pts = (
         (mx(0pt), 0cm), (mx(x1), 0cm), (mx(x1), lr),
         (mx(x1 + tip-l), h / 2), (mx(x1), h - lr), (mx(x1), h), (mx(0pt), h))
-      box(width: w, height: h,
+      box(width: w, height: h, {
         if soft { polygon(fill: paint, ..smooth-pts(pts, lr * 0.9)) }
-        else { polygon(fill: paint, ..pts) })
+        else { polygon(fill: paint, ..pts) }
+        if vintage {
+          place(top + left, vintage-pts(
+            if soft { smooth-pts(pts, lr * 0.9) } else { pts },
+            paint.darken(30%), 1pt, closed: true,
+            vintage-pen: vintage-pen))
+        }
+      })
     }
     let ribbon = box(width: Wr, height: h, {
       let put(x1, paint) = if rtl {
@@ -423,20 +583,34 @@
   ink: white,
   width: 100%,
   inset: 0.28cm,
+  vintage: false,
+  vintage-pen: none,
 ) = {
-  block(width: width,
-    fill: colour,
-    stroke: 3pt + white,
-    inset: (x: inset + 0.08cm, y: inset),
-    radius: 0.08cm, {
-      set text(fill: ink, weight: "bold")
-      if title != none {
-        align(center, text(size: 1.05em, title))
-        v(0.18cm, weak: true)
-      }
-      set text(weight: "regular")
-      body
-    })
+  layout(avail => {
+    let W = if type(width) == ratio { avail.width * width } else { width }
+    let inner = block(width: W,
+      inset: (x: inset + 0.08cm, y: inset), {
+        set text(fill: ink, weight: "bold")
+        if title != none {
+          align(center, text(size: 1.05em, title))
+          v(0.18cm, weak: true)
+        }
+        set text(weight: "regular")
+        body
+      })
+    let H = measure(inner).height
+    block(width: W, height: H,
+      fill: colour,
+      stroke: if vintage { none } else { 3pt + white },
+      radius: 0.08cm, {
+        place(top + left, inner)
+        if vintage {
+          place(top + left, vintage-pts(
+            rounded-rect-pts((0pt, 0pt), (W, H), radius: 0.08cm),
+            white, 3pt, closed: true, vintage-pen: vintage-pen))
+        }
+      })
+  })
 }
 
 /// AfficheSoldes: titled box, old price leading, new price trailing,
@@ -451,6 +625,8 @@
   width: 7.2cm,
   size: 1.0,
   direction: auto,
+  vintage: false,
+  vintage-pen: none,
 ) = context {
   let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
   let z = size
@@ -472,7 +648,8 @@
   let yL = if rtl { 1.70cm * z + skew } else { 1.70cm * z }
   let yR = if rtl { 1.70cm * z } else { 1.70cm * z + skew }
   block(width: W, height: H,
-    stroke: 1.6pt + colour, fill: white, inset: 0pt, {
+    stroke: if vintage { none } else { 1.6pt + colour }, fill: white,
+    inset: 0pt, {
       place(top + left, rect(width: W, height: title-h, fill: colour))
       place(top + left, box(width: W, height: title-h,
         align(center + horizon,
@@ -507,6 +684,11 @@
       } else {
         place(bottom + right, dx: -pad, dy: -pad,
           text(size: 0.82em * z)[#new-lab : #new])
+      }
+      if vintage {
+        place(top + left, vintage-pts(
+          ((0pt, 0pt), (W, 0pt), (W, H), (0pt, H)),
+          colour, 1.6pt, closed: true, vintage-pen: vintage-pen))
       }
     })
 }

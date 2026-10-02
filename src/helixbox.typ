@@ -8,6 +8,9 @@
 // ===========================================================================
 
 #import "fabox.typ": is-rtl
+#import "antique.typ": vintage-pts
+
+#import "theme.typ": theme-state, grayscale-paint
 
 #let _helix-path(w, h, phase, period) = {
   let n = calc.max(16, int(w / 0.045cm))
@@ -21,13 +24,17 @@
   })
 }
 
-#let _stroke-pts(pts, paint, w) = {
+#let _stroke-pts(pts, paint, w, vintage: false, vintage-pen: none) = {
   if pts.len() < 2 { return }
-  place(curve(
-    stroke: (paint: paint, thickness: w, cap: "round", join: "round"),
-    curve.move(pts.first()),
-    ..pts.slice(1).map(p => curve.line(p)),
-  ))
+  if vintage {
+    place(vintage-pts(pts, paint, w, closed: false, vintage-pen: vintage-pen))
+  } else {
+    place(curve(
+      stroke: (paint: paint, thickness: w, cap: "round", join: "round"),
+      curve.move(pts.first()),
+      ..pts.slice(1).map(p => curve.line(p)),
+    ))
+  }
 }
 
 #let _curl-mini(w, h, paint) = box(width: w, height: h, {
@@ -103,7 +110,21 @@
   inset: 0.38cm,
   width: 100%,
   direction: auto,
+  vintage: false,      // the helix strands engraved with a nib
+  vintage-pen: none,
+  title-offset-x: 0pt,
+  title-offset-y: 0pt,
 ) = context {
+  let print-mode = theme-state.get().mode == "print"
+  let colour = if print-mode { black } else { colour }
+  let fill = if print-mode { white } else { fill }
+  let title-colour = if print-mode { black } else { title-colour }
+  let helix-a = if print-mode { black } else { helix-a }
+  let helix-b = if print-mode { luma(224) } else { helix-b }
+  let stripe = if print-mode { (black, luma(224)) } else { stripe }
+  let shadow-colour = if print-mode { grayscale-paint(shadow-colour) } else { shadow-colour }
+  if print-mode { set text(fill: black) }
+
   let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
   let body-dir = if rtl { std.rtl } else { ltr }
 
@@ -175,8 +196,7 @@
       let title-w = if title == none { 0pt } else { tm.width + curl-w + 0.28cm }
       if title != none {
         let tx = if rtl { W - title-w - title-pad } else { title-pad }
-        place(top + left, dx: tx, dy: (bar - tm.height) / 2,
-          box(width: title-w, {
+        place(top + left, dx: (tx) + title-offset-x, dy: ((bar - tm.height) / 2) + title-offset-y, box(width: title-w, {
             set text(dir: body-dir)
             set align(start)
             box(baseline: 40%, _curl-mini(curl-w, bar * 0.7, title-colour))
@@ -192,8 +212,8 @@
       let helix-box = box(width: hw, height: bar, {
         let p1 = _helix-path(hw, bar, 0deg, helix-period)
         let p2 = _helix-path(hw, bar, 180deg, helix-period)
-        _stroke-pts(p1, helix-a, 1.15pt)
-        _stroke-pts(p2, helix-b, 1.15pt)
+        _stroke-pts(p1, helix-a, 1.15pt, vintage: vintage, vintage-pen: vintage-pen)
+        _stroke-pts(p2, helix-b, 1.15pt, vintage: vintage, vintage-pen: vintage-pen)
       })
       place(top + left, dx: hx0, helix-box)
 

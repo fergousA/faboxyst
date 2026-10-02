@@ -900,17 +900,16 @@
 
 
 
-#cmd-title[ornate-pages · bound-page · spiral-binding]
+#cmd-title[bound-page · spiral-binding]
 #sig[
 ```typ
-#ornate-pages(doc, preset: ornatebox, margin: 1.2cm, inner: auto, ..args)
 #bound-page(body, side: auto, colour: rgb("#88AAAA"), margin: 2.6cm, rest: 1.8cm, ..args)
 #spiral-binding(side: auto, colour: rgb("#88AAAA"), gap: 1.5cm, gutter: true, ...)
 ```
 ]
 #v(6pt)
 
-#note-line[Ces commandes *prennent la page*. Voir les fichiers `page-ornate.typ`, `page-bound.typ`.]
+#note-line[Ces commandes *prennent la page*. Voir le fichier `page-bound.typ`.]
 #param-row([spiral-binding left vs right],
   box(height: 4.2cm, width: 100%, stroke: 0.4pt + luma(200), {
     spiral-binding(side: "left", gap: 1.1cm)

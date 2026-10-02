@@ -10,8 +10,11 @@
 // ===========================================================================
 
 #import "engine.typ": polygon-pts, star-pts
+#import "antique.typ": vintage-pts
 
 /// The plates' palette.
+#import "theme.typ": theme-state
+
 #let ogee-colours = (
   teal:  rgb("#0F6B5B"),   // deep banner green
   mint:  rgb("#DCE9DC"),   // the light banner ground
@@ -101,11 +104,22 @@
   text-fill: auto,
   inset: (x: 0.6cm, y: 0.42cm),
   width: 100%,
+  vintage: false,      // the double ogee rule engraved with a nib
+  vintage-pen: none,
 ) = context {
+  let print-mode = theme-state.get().mode == "print"
+  let fill = if print-mode { white } else { fill }
+  let line = if print-mode { black } else { line }
+  let text-fill = if print-mode { black } else { text-fill }
+  if print-mode { set text(fill: black) }
+
   let oc = ogee-colours
-  let bk = if fill == auto { if light { oc.mint } else { oc.teal } } else { fill }
-  let ln = if line == auto { oc.gold } else { line }
-  let tc = if text-fill == auto { if light { oc.ink } else { white } } else { text-fill }
+  let bk = if print-mode { white }
+    else if fill == auto { if light { oc.mint } else { oc.teal } } else { fill }
+  let ln = if print-mode { black } else if line == auto { oc.gold } else { line }
+  let tc = if print-mode { black }
+    else if text-fill == auto { if light { oc.ink } else { white } } else { text-fill }
+  let badge-fill = if print-mode { luma(224) } else { oc.badge }
   let ix = inset.at("x", default: 0.6cm)
   let iy = inset.at("y", default: 0.42cm)
   let content = text(fill: tc, weight: "bold", body)
@@ -116,11 +130,22 @@
     let m = 0.5cm
     block(width: W, height: H, {
       // the plaque, double-ruled
-      place(top + left, polygon(fill: bk, stroke: 1.3pt + ln,
+      place(top + left, polygon(
+        fill: bk,
+        stroke: if vintage { none } else { 1.3pt + ln },
         .._ogee(W, H, m)))
       let i = 0.09cm
       place(top + left, dx: i, dy: i,
-        polygon(stroke: 0.7pt + ln, .._ogee(W - 2 * i, H - 2 * i, m - i)))
+        polygon(
+          stroke: if vintage { none } else { 0.7pt + ln },
+          .._ogee(W - 2 * i, H - 2 * i, m - i)))
+      if vintage {
+        place(top + left,
+          vintage-pts(_ogee(W, H, m), ln, 1.3pt, vintage-pen: vintage-pen))
+        place(top + left, dx: i, dy: i,
+          vintage-pts(_ogee(W - 2 * i, H - 2 * i, m - i), ln, 0.7pt,
+            vintage-pen: vintage-pen))
+      }
       // rosettes flanking the text
       if medallions != none and medallions != false {
         let rs = calc.min(0.9cm, H * 0.62)
@@ -135,11 +160,11 @@
       if badge != none {
         let bs = 1.05cm
         place(top + left, dx: 0.05cm, dy: (H - bs) / 2, {
-          place(top + left, polygon(fill: oc.badge, stroke: 1pt + ln,
+          place(top + left, polygon(fill: badge-fill, stroke: 1pt + ln,
             ..polygon-pts((bs / 2, bs / 2), bs / 2, n: 8, start: 22)))
           place(top + left,
             block(width: bs, height: bs, align(center + horizon,
-              text(fill: white, weight: "bold", size: 0.9em,
+              text(fill: if print-mode { black } else { white }, weight: "bold", size: 0.9em,
                 str(badge)))))
         })
       }
@@ -164,11 +189,15 @@
   text-fill: auto,
   inset: (x: 2.2cm, y: 0.4cm),
   width: 100%,
+  vintage: false,      // the band rule engraved with a nib
+  vintage-pen: none,
 ) = context {
+  let print-mode = theme-state.get().mode == "print"
   let oc = ogee-colours
-  let bk = if fill == auto { oc.teal } else { fill }
-  let ln = if line == auto { oc.gold } else { line }
-  let tc = if text-fill == auto { white } else { text-fill }
+  let bk = if print-mode { white } else if fill == auto { oc.teal } else { fill }
+  let ln = if print-mode { black } else if line == auto { oc.gold } else { line }
+  let tc = if print-mode { black } else if text-fill == auto { white } else { text-fill }
+  if print-mode { set text(fill: black) }
   let ix = inset.at("x", default: 2.2cm)
   let iy = inset.at("y", default: 0.4cm)
   let content = text(fill: tc, weight: "bold", body)
@@ -179,6 +208,11 @@
     block(width: W, height: H, clip: true, {
       place(top + left, rect(width: W, height: H, fill: bk))
       place(top + left, rect(width: W, height: 1pt, fill: ln))
+      if vintage {
+        place(top + left,
+          vintage-pts(((0pt, 0pt), (W, 0pt), (W, H), (0pt, H)), ln, 0.9pt,
+            vintage-pen: vintage-pen))
+      }
       let gs = H * 1.9
       place(top + left, dx: -gs * 0.18, dy: (H - gs) / 2,
         girih(size: gs, line: ln))

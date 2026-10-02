@@ -7,8 +7,11 @@
 // ===========================================================================
 
 #import "fabox.typ": is-rtl
+#import "antique.typ": vintage-pts
 
 /// One Greek-key corner. `angle` turns it onto TL / TR / BR / BL.
+#import "theme.typ": theme-state
+
 #let _key-corner(angle, sz, paint, weight) = {
   let o = sz + 3pt
   let ps = ((sz, o), (sz, 0pt), (0pt, 0pt), (0pt, sz), (o, sz), (o, 0pt))
@@ -47,7 +50,15 @@
   inset: auto,
   width: 100%,
   direction: auto,
+  vintage: false,      // the key frame engraved with a nib
+  vintage-pen: none,
 ) = context {
+  let print-mode = theme-state.get().mode == "print"
+  let colour = if print-mode { black } else { colour }
+  let frame = if print-mode { black } else { frame }
+  let fill = if print-mode { white } else { fill }
+  if print-mode { set text(fill: black) }
+
   let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
   let body-dir = if rtl { std.rtl } else { ltr }
   let band-w = if band == auto { calc.max(1pt, sz - 5pt) } else { band }
@@ -70,29 +81,37 @@
         place(top + left, box(width: W, height: H, fill: fill))
       }
 
-      // inset colour band
-      place(top + left, dx: band-inset, dy: band-inset,
-        box(
-          width: W - 2 * band-inset,
-          height: H - 2 * band-inset,
-          stroke: band-w + colour,
-        ))
+      // inset colour band (engraved in vintage mode; the key corners and
+      // connecting rules are then redundant and stay out)
+      if vintage {
+        place(top + left, dx: band-inset, dy: band-inset,
+          vintage-pts(((0pt, 0pt), (W - 2 * band-inset, 0pt),
+            (W - 2 * band-inset, H - 2 * band-inset), (0pt, H - 2 * band-inset)),
+            colour, band-w, vintage-pen: vintage-pen))
+      } else {
+        place(top + left, dx: band-inset, dy: band-inset,
+          box(
+            width: W - 2 * band-inset,
+            height: H - 2 * band-inset,
+            stroke: band-w + colour,
+          ))
 
-      // corners + connecting rules
-      place(top + left, box(width: W, height: H,
-        grid(
-          columns: (auto, 1fr, auto),
-          rows: (auto, 1fr, auto),
-          _key-corner(0deg, sz, frame, weight),
-          align(top, _hrule(frame, weight)),
-          _key-corner(90deg, sz, frame, weight),
-          _vrule(frame, weight),
-          [],
-          align(right, _vrule(frame, weight)),
-          _key-corner(270deg, sz, frame, weight),
-          align(bottom, _hrule(frame, weight)),
-          _key-corner(180deg, sz, frame, weight),
-        )))
+        // corners + connecting rules
+        place(top + left, box(width: W, height: H,
+          grid(
+            columns: (auto, 1fr, auto),
+            rows: (auto, 1fr, auto),
+            _key-corner(0deg, sz, frame, weight),
+            align(top, _hrule(frame, weight)),
+            _key-corner(90deg, sz, frame, weight),
+            _vrule(frame, weight),
+            [],
+            align(right, _vrule(frame, weight)),
+            _key-corner(270deg, sz, frame, weight),
+            align(bottom, _hrule(frame, weight)),
+            _key-corner(180deg, sz, frame, weight),
+          )))
+      }
 
       place(top + left, dx: pad, dy: pad, main)
     })

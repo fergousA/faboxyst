@@ -10,6 +10,9 @@
 // ===========================================================================
 
 #import "fabox.typ": is-rtl
+#import "antique.typ": vintage-pts
+
+#import "theme.typ": theme-state
 
 #let _st(paint, w) = (paint: paint, thickness: w, cap: "square", join: "miter")
 
@@ -49,9 +52,20 @@
 }
 
 /// An octagon (or just its stroke) placed at `(dx, dy)`.
-#let _put-oct(dx, dy, w, h, cut, fill: none, stroke: none) = {
-  place(top + left, dx: dx, dy: dy,
-    polygon(fill: fill, stroke: stroke, .._octagon(w, h, cut)))
+#let _put-oct(dx, dy, w, h, cut, fill: none, stroke: none, vintage: false,
+              vintage-pen: none) = {
+  place(top + left, dx: dx, dy: dy, {
+    if vintage {
+      let pts = _octagon(w, h, cut)
+      if fill != none { polygon(fill: fill, ..pts) }
+      if stroke != none {
+        vintage-pts(pts, stroke.paint, stroke.thickness, closed: true,
+          vintage-pen: vintage-pen)
+      }
+    } else {
+      polygon(fill: fill, stroke: stroke, .._octagon(w, h, cut))
+    }
+  })
 }
 
 #let crestbox(
@@ -73,7 +87,16 @@
   inset: 0.40cm,
   width: 100%,
   direction: auto,
+  vintage: false,      // the four octagon rules engraved with a nib
+  vintage-pen: none,
 ) = context {
+  let print-mode = theme-state.get().mode == "print"
+  let colour = if print-mode { black } else { colour }
+  let outer = if print-mode { black } else { outer }
+  let fill = if print-mode { white } else { fill }
+  let title-colour = if print-mode { black } else { title-colour }
+  if print-mode { set text(fill: black) }
+
   let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
   let body-dir = if rtl { std.rtl } else { ltr }
 
@@ -111,21 +134,30 @@
     let iy = pad-t + m
 
     block(width: W + pad-l + pad-r, height: H + pad-t + pad-b, {
+      // In print the crest shadow remains as a monochrome offset silhouette.
+      if print-mode and shadow {
+        _put-oct(ox + shadow-offset.at(0), oy + shadow-offset.at(1), ow, oh,
+          cut + gap, fill: black)
+      }
       // 1. single black outer octagon
       _put-oct(ox, oy, ow, oh, cut + gap,
-        stroke: _st(outer, outer-weight))
+        stroke: _st(outer, outer-weight), vintage: vintage,
+        vintage-pen: vintage-pen)
 
       // 2. beige fill
-      _put-oct(ix, iy, iw, ih, cut, fill: fill)
+      _put-oct(ix, iy, iw, ih, cut, fill: fill, vintage: vintage)
 
       // 3. two green hairlines with a WHITE gutter between them
-      _put-oct(ix, iy, iw, ih, cut, stroke: _st(colour, weight))
+      _put-oct(ix, iy, iw, ih, cut, stroke: _st(colour, weight), vintage: vintage,
+        vintage-pen: vintage-pen)
       let woff = pair / 2 + weight / 2
       _put-oct(ix + woff, iy + woff, iw - 2 * woff, ih - 2 * woff,
-        cut - woff, stroke: _st(white, pair))
+        cut - woff, stroke: _st(white, pair), vintage: vintage,
+        vintage-pen: vintage-pen)
       let ioff = pair + weight
       _put-oct(ix + ioff, iy + ioff, iw - 2 * ioff, ih - 2 * ioff,
-        cut - ioff, stroke: _st(colour, weight))
+        cut - ioff, stroke: _st(colour, weight), vintage: vintage,
+        vintage-pen: vintage-pen)
 
       // 5. body
       place(top + left, dx: ix + inset, dy: iy + inset, main)
@@ -146,9 +178,17 @@
             box(baseline: 40%, _curl(fw, fh, title-colour, flip: true))
           }
         }
-        place(top + center, dy: iy - gap - tm.height * 0.55, {
-          box(fill: fill, inset: (x: 0.14cm, y: 0.02cm), crest)
-        })
+        // the title plate takes the box's own cut corners (a small octagon)
+        // with a hairline in the box colour, so it reads as part of the frame
+        let cm = measure(crest)
+        let pw = cm.width + 0.34cm
+        let ph = cm.height + 0.10cm
+        place(top + center, dy: iy - gap - tm.height * 0.55 - 0.03cm,
+          box(width: pw, height: ph, {
+            place(top + left, polygon(fill: fill, stroke: _st(colour, weight),
+              .._octagon(pw, ph, calc.min(cut * 0.55, ph * 0.30))))
+            place(center + horizon, crest)
+          }))
       }
     })
   })

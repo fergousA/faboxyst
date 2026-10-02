@@ -5,6 +5,10 @@
 // ===========================================================================
 
 #import "fabox.typ": is-rtl
+#import "engine.typ": rounded-rect-pts
+#import "antique.typ": vintage-pts
+
+#import "theme.typ": theme-state
 
 #let filebox(
   body,
@@ -21,7 +25,19 @@
   inset: 0.36cm,
   width: 100%,
   direction: auto,
+  vintage: false,      // main frame engraved with an elliptical nib
+  vintage-pen: none,
+  title-offset-x: 0pt,
+  title-offset-y: 0pt,
 ) = context {
+  let print-mode = theme-state.get().mode == "print"
+  let colour = if print-mode { black } else { colour }
+  let active-fill = if print-mode { white } else { active-fill }
+  let idle-fill = if print-mode { luma(224) } else { idle-fill }
+  let title-colour = if print-mode { black } else { title-colour }
+  let fill = if print-mode { white } else { fill }
+  if print-mode { set text(fill: black) }
+
   let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
   let body-dir = if rtl { std.rtl } else { ltr }
   let labels = if type(tabs) == array { tabs } else { (tabs,) }
@@ -44,7 +60,13 @@
       let folder-y = th * 0.42
       place(top + left, dy: folder-y,
         box(width: W, height: H - folder-y, fill: fill, radius: radius,
-          stroke: frame-weight + colour))
+          stroke: if vintage { none } else { frame-weight + colour }))
+      if vintage {
+        place(top + left, dy: folder-y,
+          vintage-pts(rounded-rect-pts((0pt, 0pt), (W, H - folder-y),
+            radius: radius, n: 10), colour, frame-weight,
+            vintage-pen: vintage-pen))
+      }
 
       let gap = 0.10cm
       let tab-w = (W - gap * (n + 1)) / n
@@ -54,8 +76,7 @@
         let is-on = i == act
         let h = if is-on { th } else { th * 0.78 }
         let y = th - h
-        place(top + left, dx: x, dy: y,
-          box(
+        place(top + left, dx: (x) + title-offset-x, dy: (y) + title-offset-y, box(
             width: tab-w, height: h + 0.08cm,
             fill: if is-on { active-fill } else { idle-fill },
             radius: (top: radius, bottom: 0pt),

@@ -16,9 +16,12 @@
 // ===========================================================================
 
 #import "fabox.typ": is-rtl
+#import "antique.typ": vintage-pts
 #import "engine.typ": randoms
 
 /// The reference artwork's wood palette.
+#import "theme.typ": theme-state
+
 #let plank-colours = (
   wood:   rgb("#E8C078"),   // golden-beige plank wood
   rim:    rgb("#C08A4E"),   // darker shading on the edges
@@ -265,10 +268,16 @@
 
 // Sketchy banner: wavy double graphite outline, paper fill, sparse
 // pencil ticks radiating outside the outer line.
-#let _sketch-plank(W, H, content, ix, iy, seed, pc, weight) = {
+#let _sketch-plank(W, H, content, ix, iy, seed, pc, weight,
+                     vintage: false, vintage-pen: none) = {
   block(width: W, height: H, {
-    place(top + left, polygon(fill: pc.paper, stroke: weight + pc.line,
+    place(top + left, polygon(fill: pc.paper,
+      stroke: if vintage { none } else { weight + pc.line },
       .._wavy-rect(W, H, seed, 2.4pt)))
+    if vintage {
+      place(top + left, vintage-pts(_wavy-rect(W, H, seed, 2.4pt), pc.line,
+        weight, vintage-pen: vintage-pen))
+    }
     place(top + left, dx: 3.6pt, dy: 3.6pt,
       polygon(stroke: 0.8pt + pc.line.transparentize(20%),
         .._wavy-rect(W - 7.2pt, H - 7.2pt, seed + 3, 1.9pt)))
@@ -285,17 +294,23 @@
             thickness: 0.7pt, cap: "round")))
     }
     place(top + left, dx: ix, dy: iy,
-      block(width: W - 2 * ix, height: H - 2 * iy,
+      block(width: W - 2 * ix, height: calc.max(H - 2 * iy, 0pt),
         align(center + horizon, content)))
   })
 }
 
 // Hatched banner: rough graphite rectangle hugged by a dense scribbled
 // band of diagonal pencil strokes.
-#let _hatch-plank(W, H, content, ix, iy, seed, pc, weight) = {
+#let _hatch-plank(W, H, content, ix, iy, seed, pc, weight,
+                    vintage: false, vintage-pen: none) = {
   block(width: W, height: H, {
     place(top + left, polygon(fill: pc.paper,
-      stroke: (weight * 0.85) + pc.line, .._wavy-rect(W, H, seed, 1.8pt)))
+      stroke: if vintage { none } else { (weight * 0.85) + pc.line },
+      .._wavy-rect(W, H, seed, 1.8pt)))
+    if vintage {
+      place(top + left, vintage-pts(_wavy-rect(W, H, seed, 1.8pt), pc.line,
+        weight, vintage-pen: vintage-pen))
+    }
     let r = randoms(seed + 77, 120)
     let nb = calc.max(24, int(2 * (W + H) / 5pt))
     for i in range(nb) {
@@ -312,14 +327,15 @@
             thickness: 0.8pt, cap: "round")))
     }
     place(top + left, dx: ix, dy: iy,
-      block(width: W - 2 * ix, height: H - 2 * iy,
+      block(width: W - 2 * ix, height: calc.max(H - 2 * iy, 0pt),
         align(center + horizon, content)))
   })
 }
 
 // A single plank: shadow + rim + wood + slits + details + centred
 // content, all in one block so the whole plank tilts with one rotation.
-#let _plank(W, H, content, ix, iy, seed, pc, weight, jit, knot, mottle) = {
+#let _plank(W, H, content, ix, iy, seed, pc, weight, jit, knot, mottle,
+           vintage: false, vintage-pen: none) = {
   let specs = _slit-specs(H, seed, ix)
   let outer = _outline(W, H, seed, jit, specs)
   let rim-t = 2.2pt
@@ -329,7 +345,12 @@
     // faint light-grey shadow, peeking under the lower edge
     place(top + left, dx: 0.4pt, dy: 1.6pt, polygon(fill: pc.shadow, ..outer))
     // darker rim, bark outline
-    place(top + left, polygon(fill: pc.rim, stroke: weight + pc.edge, ..outer))
+    place(top + left, polygon(fill: pc.rim,
+      stroke: if vintage { none } else { weight + pc.edge }, ..outer))
+    if vintage {
+      place(top + left, vintage-pts(outer, pc.edge, weight,
+        vintage-pen: vintage-pen))
+    }
     // golden-beige matte surface
     place(top + left, dx: rim-t, dy: rim-t, polygon(fill: pc.wood, ..inner))
     // papyrus-like intensity noise over the wood
@@ -338,7 +359,7 @@
     _slits(W, H, specs, pc.edge)
     _grain(W, H, pc, knot: knot, seed: seed)
     place(top + left, dx: ix, dy: iy,
-      block(width: W - 2 * ix, height: H - 2 * iy,
+      block(width: W - 2 * ix, height: calc.max(H - 2 * iy, 0pt),
         align(center + horizon, content)))
   })
 }
@@ -349,8 +370,9 @@
 /// edge rising to the right). `style: "sketch"` or `style: "hatch"`
 /// switch to the sketchy-pencil banner looks (wavy double graphite
 /// outline, or a dense hatched halo) on off-white paper. The title rides the upper plank and the
-/// body the lower one; without a title the body sits alone on a single
-/// plank about 2.4 times as wide as high.
+/// body the lower one; with automatic sizing, each plank follows its
+/// measured content. Explicit width/height values can still impose a larger
+/// horizontal or vertical frame.
 ///
 /// ```typ
 /// #plankbox(title: [Ma lettre])[de fin d'année]
@@ -364,6 +386,7 @@
   streak: auto,
   text-fill: auto,
   title-size: 1.1em,
+  leading: auto,       // interline spacing; auto uses the surrounding par style
   tilt: 2deg,          // very slight lean; the lower plank leans less
   gap: 0.06cm,         // daylight between the two planks
   style: "wood",       // "wood" | "sketch" | "hatch" (sketchy pencil)
@@ -371,11 +394,22 @@
   jitter: 0.8pt,       // waviness of the hand-sawn edges
   mottle: 6%,          // papyrus-like intensity noise on the wood
   inset: (x: 0.55cm, y: 0.30cm),
-  width: 96%,
-  height: auto,        // force the sign's height (page frames)
+  width: auto,         // fit the widest content; ratios and lengths still work
+  height: auto,        // fit the content; an explicit value fixes the outer height
   seed: auto,
   direction: auto,
+  vintage: false,      // the plank outlines engraved with a nib
+  vintage-pen: none,
 ) = context {
+  let print-mode = theme-state.get().mode == "print"
+  let wood = if print-mode { white } else { wood }
+  let edge = if print-mode { black } else { edge }
+  let streak = if print-mode { luma(224) } else { streak }
+  let text-fill = if print-mode { black } else { text-fill }
+  let style = if print-mode { "hatch" } else { style }
+  let mottle = if print-mode { 0% } else { mottle }
+  if print-mode { set text(fill: black) }
+
   let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
   let body-dir = if rtl { std.rtl } else { ltr }
   let pc = plank-colours
@@ -399,14 +433,46 @@
   let ix = inset.at("x", default: 0.55cm)
   let iy = inset.at("y", default: 0.30cm)
 
-  let title-body = if title == none { none } else {
+  let title-body = if title == none { none } else if leading == auto {
     text(fill: pc2.ink, weight: "bold", size: title-size, title)
+  } else {
+    text(fill: pc2.ink, weight: "bold", size: title-size, {
+      set par(leading: leading)
+      title
+    })
   }
-  let body-body = text(fill: pc2.ink, weight: "bold", body)
+  let body-body = if leading == auto {
+    text(fill: pc2.ink, weight: "bold", body)
+  } else {
+    text(fill: pc2.ink, weight: "bold", {
+      set par(leading: leading)
+      body
+    })
+  }
 
   layout(avail => {
     let Wfull = avail.width
-    let W = if type(width) == ratio { Wfull * width } else { width }
+    let two = title != none
+    let raw-tm = if two {
+      measure(title-body)
+    } else {
+      (width: 0pt, height: 0pt)
+    }
+    let raw-bm = measure(body-body)
+
+    // With `width: auto`, fit the widest title/body line, including the
+    // horizontal inset and the slight narrowing of the two plank shapes.
+    let title-need = if two { (raw-tm.width + 2 * ix) / 0.97 } else { 0pt }
+    let body-need = (raw-bm.width + 2 * ix) / 0.99
+    let content-w = calc.max(title-need, body-need)
+    let W = if width == auto {
+      // Long content still wraps instead of overflowing the available line.
+      calc.min(content-w, Wfull)
+    } else if type(width) == ratio {
+      Wfull * width
+    } else {
+      width
+    }
     let cx = (Wfull - W) / 2             // the sign sits centred
     let sgn = if rtl { -1 } else { 1 }
 
@@ -420,11 +486,21 @@
     let lift-top = W * deg-top / 57.3
     let lift-bot = W * deg-bot / 57.3
 
-    let two = title != none
-    let tm = if two { measure(title-body) } else { (width: 0pt, height: 0pt) }
+    let top-w = W * 0.97
+    let bot-w = W * 0.99
+    // Measure again in the actual content width so wrapped text contributes
+    // to the automatic height.
+    let tm = if two {
+      measure(block(width: calc.max(top-w - 2 * ix, 0pt), title-body))
+    } else {
+      (width: 0pt, height: 0pt)
+    }
+    let bm = measure(block(width: calc.max(bot-w - 2 * ix, 0pt), body-body))
     let top-h = if two { calc.max(tm.height + 2 * iy, 1.05cm) } else { 0pt }
-    let bm = measure(body-body)
-    let min-h = if two { 1.05cm } else { W / 2.4 }   // the 2.4 proportion
+    // Automatic height is content-driven. The old W / 2.4 floor made
+    // `height: auto` effectively depend on the width, especially with
+    // `width: 100%`, and could completely dominate a short body.
+    let min-h = if two { 1.05cm } else { 0pt }
     let bot-h = calc.max(bm.height + 2 * iy, min-h)
 
     let y-top = lift-top
@@ -432,9 +508,11 @@
     let sink = if rtl { lift-top + lift-bot } else { 0pt }
     if height != auto {
       let Ht = if type(height) == ratio { avail.height * height } else { height }
-      let cur = (if two { y-bot + bot-h } else { y-top + bot-h }) + sink + 4pt
-      let extra = Ht - cur
-      if extra > 0pt { bot-h = bot-h + extra }
+      // `height` is the total outer height of the sign.  The old code only
+      // added positive extra space, so a value smaller than the natural
+      // height was silently ignored.
+      let base = (if two { y-bot } else { y-top }) + sink + 4pt
+      bot-h = calc.max(0pt, Ht - base)
     }
     let H = (if two { y-bot + bot-h } else { y-top + bot-h }) + sink + 4pt
 
@@ -443,30 +521,34 @@
       set align(start)
 
       if two {
-        let top-w = W * 0.97
         let tx = cx + (W - top-w) / 2
         let art = if style == "sketch" {
-          _sketch-plank(top-w, top-h, title-body, ix, iy, sd, pc3, weight)
+          _sketch-plank(top-w, top-h, title-body, ix, iy, sd, pc3, weight,
+            vintage: vintage, vintage-pen: vintage-pen)
         } else if style == "hatch" {
-          _hatch-plank(top-w, top-h, title-body, ix, iy, sd, pc3, weight)
+          _hatch-plank(top-w, top-h, title-body, ix, iy, sd, pc3, weight,
+            vintage: vintage, vintage-pen: vintage-pen)
         } else {
           _plank(top-w, top-h, title-body, ix, iy, sd, pc2, weight,
-            jitter, if rtl { 88% } else { 12% }, mottle)
+            jitter, if rtl { 88% } else { 12% }, mottle,
+            vintage: vintage, vintage-pen: vintage-pen)
         }
         place(top + left, dx: tx, dy: y-top,
           rotate(a-top, origin: top + left, reflow: false, art))
       }
 
-      let bot-w = W * 0.99
       let bx = cx + (W - bot-w) / 2
       let by = if two { y-bot } else { y-top }
       let art2 = if style == "sketch" {
-        _sketch-plank(bot-w, bot-h, body-body, ix, iy, sd + 77, pc3, weight)
+        _sketch-plank(bot-w, bot-h, body-body, ix, iy, sd + 77, pc3, weight,
+          vintage: vintage, vintage-pen: vintage-pen)
       } else if style == "hatch" {
-        _hatch-plank(bot-w, bot-h, body-body, ix, iy, sd + 77, pc3, weight)
+        _hatch-plank(bot-w, bot-h, body-body, ix, iy, sd + 77, pc3, weight,
+          vintage: vintage, vintage-pen: vintage-pen)
       } else {
         _plank(bot-w, bot-h, body-body, ix, iy, sd + 77, pc2, weight,
-          jitter, if rtl { 14% } else { 86% }, mottle)
+          jitter, if rtl { 14% } else { 86% }, mottle,
+          vintage: vintage, vintage-pen: vintage-pen)
       }
       place(top + left, dx: bx, dy: by,
         rotate(a-bot, origin: top + left, reflow: false, art2))
@@ -477,20 +559,3 @@
 /// French alias, after the pancarte the box imitates.
 #let pancarte(..a) = plankbox(..a)
 
-/// Draw the wooden sign as a full-page frame on every page, after
-/// `ornate-pages`: the sign seats in the page background at `margin`
-/// while the text flows `gap` inside it. Use `#show: plank-pages` to frame a whole document, or call the rule
-/// directly on a section (`#plank-pages[...]`) to chain several different
-/// frames in one document.
-#let plank-pages(doc, margin: 0.7cm, gap: 1.1cm, ..args) = {
-  set page(
-    margin: margin + gap,
-    background: context {
-      let fw = page.width - 2 * margin
-      let fh = page.height - 2 * margin
-      place(top + left, dy: margin,
-        plankbox([], width: fw, height: fh, tilt: 0deg, ..args.named()))
-    },
-  )
-  doc
-}

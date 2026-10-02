@@ -18,10 +18,13 @@
 #import "mapdraw.typ": (polylines as md-polylines, region as md-region,
   rough-outline as md-rough-outline)
 #import "watermark.typ": paint-watermark, resolve-wm-colour
+#import "antique.typ": vintage-outline
 
 // ---------------------------------------------------------------------------
 //  geometry helpers
 // ---------------------------------------------------------------------------
+
+#import "theme.typ": theme-state
 
 #let _cm(l) = if type(l) == length { l / 1cm } else { l }
 
@@ -101,7 +104,19 @@
   watermark-colour: auto,
   watermark-angle: -18deg,
   watermark-size: 2.1em,
+  vintage: false,      // the two frames engraved with a nib
+  vintage-pen: none,
 ) = context {
+  let print-mode = theme-state.get().mode == "print"
+  let colour = if print-mode { black } else { colour }
+  let ink = if print-mode { black } else { ink }
+  let inner-ink = if print-mode { black } else { inner-ink }
+  let fill = if print-mode { white } else { fill }
+  let title-fill = if print-mode { white } else { title-fill }
+  let paper = if print-mode { luma(224) } else { paper }
+  let ring-colour = if print-mode { black } else { ring-colour }
+  if print-mode { set text(fill: black) }
+
   let ik = if ink == auto { colour } else { ink }
   // The inner page reads as the sheet *inside* the cover, so its line is a
   // shade lighter than the shell — a same-weight, same-colour double line
@@ -179,7 +194,10 @@
 
     let R(pts, sd, w, paint: auto) = {
       let pk = if paint == auto { ik } else { paint }
-      if roughness <= 0 {
+      if vintage {
+        vintage-outline(pts, flip, pk, thickness: w, closed: true,
+          vintage-pen: vintage-pen)
+      } else if roughness <= 0 {
         md-polylines((pts + (pts.first(),),), flip: flip,
           stroke: (paint: pk, thickness: w, join: "round", cap: "round"))
       } else {

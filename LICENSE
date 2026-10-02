@@ -20,8 +20,10 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-Box families follow tcolorbox by Thomas F. Sturm. The wobble is a Rough.js /
-TikZ sketch port. jotter-polylux (Andreas Kröpelin, MIT) inspired the sloppy
+Box families follow tcolorbox by Thomas F. Sturm. The wobble is written in
+pure Typst after the Rough.js and TikZ sketch techniques. jotter-polylux (Andreas Kröpelin, MIT) inspired the sloppy
 frame and the post-it fasteners.
+The *antique* vintage effect (`src/antique.typ`) draws its engraved strokes
+with the nibart package (MIT) and is MIT like the rest of the package.
 
 No fonts are bundled. Use whatever faces are installed on the system.

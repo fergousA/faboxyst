@@ -17,6 +17,9 @@
 // ===========================================================================
 
 #import "fabox.typ": is-rtl
+#import "engine.typ": rounded-rect-pts
+#import "antique.typ": vintage-pts
+#import "theme.typ": theme-state
 
 #let numbox-counter = counter("faboxyst-numbox")
 
@@ -100,6 +103,8 @@
   gap: 0.10cm,
   width: 100%,
   direction: auto,
+  vintage: false,      // frame drawn with an engraved elliptical nib
+  vintage-pen: none,   // (th, th2, angle) override for the nib
   ..rest,
 ) = {
   let extra = rest.pos()
@@ -114,10 +119,17 @@
   }
 
   context {
+    let print-mode = theme-state.get().mode == "print"
+    if print-mode { set text(fill: black) }
     let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
     let body-dir = if rtl { std.rtl } else { ltr }
-    let fr = if frame == auto { colour.lighten(18%) } else { frame }
-    let bk = if fill == auto { colour.lighten(94%) } else { fill }
+    let fr = if print-mode { black }
+      else if frame == auto { colour.lighten(18%) } else { frame }
+    let bk = if print-mode { white }
+      else if fill == auto { colour.lighten(94%) } else { fill }
+    let badge-fill = if print-mode { luma(224) } else { colour }
+    let answer-colour = if print-mode { black } else { answer-colour }
+    let title-colour = if print-mode { black } else { title-colour }
     let lbl = if answer-label != auto { answer-label }
               else if rtl { [ج:] } else { [Ans.] }
 
@@ -211,16 +223,21 @@
       }
 
       let plaque = if show-plaque {
-        _plaque(ps, colour, title-colour, plaque-body,
+        _plaque(ps, badge-fill, title-colour, plaque-body,
           radius, badge-radius, rtl, flush)
       } else { none }
 
       block(width: W, height: H, fill: bk,
-        stroke: if frame-char != none { none } else { st },
+        stroke: if frame-char != none or vintage { none } else { st },
         radius: if frame-char != none { 0pt } else { radius },
         clip: false,
         {
           set text(dir: body-dir)
+          if vintage {
+            place(top + left, vintage-pts(
+              rounded-rect-pts((0pt, 0pt), (W, H), radius: radius, n: 10),
+              fr, weight, closed: true, vintage-pen: vintage-pen))
+          }
           if show-plaque {
             place(top + start, plaque)
           }

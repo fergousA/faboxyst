@@ -11,7 +11,10 @@
 // ===========================================================================
 
 #import "fabox.typ": is-rtl
+#import "antique.typ": vintage-pts
 #import "engine.typ": sketch-points, rough-points
+
+#import "theme.typ": theme-state
 
 #let _plain(it) = {
   if type(it) == str { it }
@@ -188,8 +191,21 @@
   ink: auto,
   pen: 3.1pt,
   ghost: true,
+  vintage: false,      // the sash ring engraved with a nib
+  vintage-pen: none,
 ) = context {
+  let print-mode = theme-state.get().mode == "print"
+  let fill = if print-mode { white } else { fill }
+  let shade = if print-mode { luma(224) } else { shade }
+  let text-colour = if print-mode { black } else { text-colour }
+  let ink = if print-mode { black } else { ink }
+  let ghost = if print-mode { false } else { ghost }
+  let rough = if print-mode { false } else { rough }
+  if print-mode { set text(fill: black) }
+
   let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
+  set text(dir: if rtl { std.rtl } else { ltr })
+  set align(start)
   let dark = if shade == auto { fill.darken(20%) } else { shade }
   let tc = if text-colour == auto {
     if luma(fill).components().first() > 62% { luma(35) } else { white }
@@ -317,21 +333,24 @@
       _poly((Ar, Br, Cr), dark)
       _poly(band, fill)
 
-      if rough {
+      let paint = if ink == auto { luma(22) } else { ink }
+      let Lt = tail-poly(true)
+      let Rt = tail-poly(false)
+      let bottom = range(n + 1).map(i => {
+        let t = i / n
+        (xL + band-w * t, y-bot(t))
+      })
+      let top-back = range(n + 1).map(i => {
+        let t = 1 - i / n
+        (xL + band-w * t, y-top(t))
+      })
+      // One closed ring: left wing → band bottom → right wing → band top.
+      let ring = Lt + bottom + Rt.rev() + top-back
+      if vintage {
+        place(top + left, vintage-pts(ring, paint, pen, closed: true,
+          vintage-pen: vintage-pen))
+      } else if rough {
         let mode = if hand == "roughjs" { "roughjs" } else { "sloppy" }
-        let paint = if ink == auto { luma(22) } else { ink }
-        let Lt = tail-poly(true)
-        let Rt = tail-poly(false)
-        let bottom = range(n + 1).map(i => {
-          let t = i / n
-          (xL + band-w * t, y-bot(t))
-        })
-        let top-back = range(n + 1).map(i => {
-          let t = 1 - i / n
-          (xL + band-w * t, y-top(t))
-        })
-        // One closed ring: left wing → band bottom → right wing → band top.
-        let ring = Lt + bottom + Rt.rev() + top-back
         _ink(ring, H, paint, pen, seed + 2, mode: mode, ghost: ghost,
           closed: true)
         // fold creases stay interior ticks

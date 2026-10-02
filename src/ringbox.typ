@@ -8,6 +8,10 @@
 // ===========================================================================
 
 #import "fabox.typ": is-rtl
+#import "engine.typ": rounded-rect-pts
+#import "antique.typ": vintage-pts
+
+#import "theme.typ": theme-state
 
 #let _ring(width, radius, thickness, paint, rtl) = {
   let body = {
@@ -41,7 +45,16 @@
   inset: 1em,
   width: 100%,
   direction: auto,
+  vintage: false,      // main frame engraved with an elliptical nib
+  vintage-pen: none,
 ) = context {
+  let print-mode = theme-state.get().mode == "print"
+  let colour = if print-mode { black } else { colour }
+  let fill = if print-mode { white } else { fill }
+  let frame-colour = if print-mode { black } else { frame-colour }
+  let frame = if print-mode { true } else { frame }
+  if print-mode { set text(fill: black) }
+
   let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
   let body-dir = if rtl { std.rtl } else { ltr }
   let rw = ring-width
@@ -84,7 +97,15 @@
       let px = if rtl { 0pt } else { hang }
       place(top + left, dx: px,
         box(width: paper-w, height: H, fill: fill, radius: radius,
-          stroke: paper-stroke, main))
+          stroke: if vintage { none } else { paper-stroke }, {
+          if vintage and paper-stroke != none {
+            let sp = if type(paper-stroke) == dictionary { paper-stroke.paint } else { fc }
+            let sw = if type(paper-stroke) == dictionary { paper-stroke.thickness } else { frame-weight }
+            place(top + left, vintage-pts(
+              rounded-rect-pts((0pt, 0pt), (paper-w, H), radius: radius, n: 10),
+              sp, sw, vintage-pen: vintage-pen))
+          }
+          main}))
       let rx = if rtl { paper-w - hang } else { 0pt }
       for i in range(n) {
         let y = rs + row-h * (i + 0.5)

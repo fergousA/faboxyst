@@ -1,6 +1,6 @@
 // faboxyst — coilbox / cahier: a spiral-notebook page with a pink frame
 // and 3D coils, after the clip-art reference.
-#import "@preview/faboxyst:0.2.0": *
+#import "../lib.typ": *
 
 #set page(paper: "a4", margin: (x: 1.4cm, y: 1.2cm), fill: white)
 #set text(size: 10.5pt)

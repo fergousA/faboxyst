@@ -1,5 +1,5 @@
 // faboxyst — the two sketchy-pencil styles of plankbox.
-#import "@preview/faboxyst:0.2.0": *
+#import "../lib.typ": *
 
 #set page(width: 16cm, height: 14.5cm, margin: 1.2cm, fill: rgb("#F6F7FA"))
 #set text(size: 11pt)

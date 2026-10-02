@@ -20,6 +20,10 @@
 
 #import "fabox.typ": is-rtl
 #import "fills.typ": halftone
+#import "antique.typ": vintage-pts
+#import "engine.typ": rounded-rect-pts
+
+#import "theme.typ": theme-state
 
 // ---------------------------------------------------------------------------
 //  small geometry helpers (local, placed coordinates; y grows downwards)
@@ -118,11 +122,21 @@
   text-size: 1em,
   num-fill: rgb("#2E2E2E"),
   shadow: true,
+  vintage: false,
+  vintage-pen: none,
 ) = context {
+
+  let print-mode = theme-state.get().mode == "print"
+  let accent = if print-mode { black } else { accent }
+  let badge = if print-mode { black } else { badge }
+  let fill = if print-mode { white } else { fill }
+  let text-fill = if print-mode { black } else { text-fill }
+  let num-fill = if print-mode { black } else { num-fill }
+  if print-mode { set text(fill: black) }
+
   let rtl = is-rtl()
   let n = if num == auto {
     lecon-counter.step()
-    lecon-counter.get().first()
   } else { num }
   let pair = prog-colours.at(calc.rem(
     if type(n) == int { calc.max(n - 1, 0) } else { 0 }, prog-colours.len()))
@@ -187,21 +201,34 @@
           angle: if rtl { 0deg } else { 180deg },
         )
       } else { fill }
-      round-poly((
+      let tag = (
         (mx(0.05 * Hb), 0.50 * Hb),
         (mx(0.40 * Hb), 0.05 * Hb),
         (mx(vr - capd), 0.05 * Hb),
         (mx(vr), 0.50 * Hb),
         (mx(vr - capd), Hb - 0.05 * Hb),
         (mx(0.40 * Hb), Hb - 0.05 * Hb),
-      ), gfill, w: 0.10 * Hb)
+      )
+      if vintage {
+        place(top + left, polygon(fill: gfill, stroke: none, ..tag))
+        place(top + left, vintage-pts(tag, acc, 0.10 * Hb, closed: true,
+          vintage-pen: vintage-pen))
+      } else {
+        round-poly(tag, gfill, w: 0.10 * Hb)
+      }
       // -- underline + chevron, one open coloured stroke -----------------
-      poly-pts((
+      let chev = (
         (mx(0.34 * Hb), Hb + U * 0.62),
         (mx(xc), Hb + U * 0.62),
         (mx(xa), 0.50 * Hb),
         (mx(xc), 0.10 * Hb),
-      ), acc, U)
+      )
+      if vintage {
+        place(top + left, vintage-pts(chev, acc, U, closed: false,
+          vintage-pen: vintage-pen))
+      } else {
+        poly-pts(chev, acc, U)
+      }
       // -- the comma badge -----------------------------------------------
       let bx = bcx
       // ring
@@ -264,7 +291,16 @@
   disc: white,
   shadow: true,
   subtitle: none,
-) = {
+  vintage: false,
+  vintage-pen: none,
+  title-offset-x: 0pt,
+  title-offset-y: 0pt,
+) = context {
+  let print-mode = theme-state.get().mode == "print"
+  let colour = if print-mode { black } else { colour }
+  let text-fill = if print-mode { black } else { text-fill }
+  let disc = if print-mode { white } else { disc }
+  if print-mode { set text(fill: black) }
   let pos = a.pos()
   let title = pos.at(0, default: [])
   let sub = if pos.len() > 1 { pos.at(1) } else { subtitle }
@@ -284,7 +320,13 @@
           curve.close(mode: "straight")))
     }
     // thin ring, upper arc (185° → 355°, through the top)
-    poly-pts(arc-pts(cx, cy, R * 0.985, 187, 353, n: 56), colour, 0.045 * D)
+    if vintage {
+      place(top + left, vintage-pts(
+        arc-pts(cx, cy, R * 0.985, 187, 353, n: 56), colour, 0.045 * D,
+        closed: false, vintage-pen: vintage-pen))
+    } else {
+      poly-pts(arc-pts(cx, cy, R * 0.985, 187, 353, n: 56), colour, 0.045 * D)
+    }
     // raised white disc, with the inner shade the plate shows on its right
     place(top + left, dx: cx - R * 0.94, dy: cy - R * 0.94,
       circle(radius: R * 0.94, fill: disc))
@@ -308,8 +350,7 @@
       curve.close(mode: "straight"),
     ))
     // the two lines of text
-    place(top + left, dx: cx - R * 0.72, dy: cy - R * 0.62,
-      block(width: R * 1.44, height: R * 1.24, {
+    place(top + left, dx: (cx - R * 0.72) + title-offset-x, dy: (cy - R * 0.62) + title-offset-y, block(width: R * 1.44, height: R * 1.24, {
         set align(center)
         text(fill: text-fill, size: 0.140 * D, title)
         if sub != none {
@@ -341,7 +382,15 @@
   text-fill: rgb("#15343A"),
   text-size: 1.05em,
   streaks: 9,
+  vintage: false,
+  vintage-pen: none,
 ) = context {
+
+  let print-mode = theme-state.get().mode == "print"
+  let colour = if print-mode { luma(224) } else { colour }
+  let text-fill = if print-mode { black } else { text-fill }
+  if print-mode { set text(fill: black) }
+
   let label = block(inset: (x: 0pt, y: 0pt), {
     set text(fill: text-fill, size: text-size, weight: "bold")
     body
@@ -368,6 +417,33 @@
       // pale halo pass, slightly offset: the watercolour bleed
       place(top + left, dx: -0.008 * W, dy: 0.03 * H, blob(colour.transparentize(55%)))
       place(top + left, blob(colour))
+      if vintage {
+        let bsegs = (
+          ((0.16 * W, 0.10 * H), (0.34 * W, 0.16 * H), (0.52 * W, 0.13 * H)),
+          ((0.70 * W, 0.10 * H), (0.86 * W, 0.16 * H), (0.945 * W, 0.28 * H)),
+          ((0.985 * W, 0.42 * H), (0.975 * W, 0.62 * H), (0.93 * W, 0.76 * H)),
+          ((0.82 * W, 0.90 * H), (0.62 * W, 0.84 * H), (0.44 * W, 0.88 * H)),
+          ((0.28 * W, 0.92 * H), (0.12 * W, 0.86 * H), (0.065 * W, 0.70 * H)),
+          ((0.03 * W, 0.56 * H), (0.035 * W, 0.42 * H), (0.055 * W, 0.30 * H)),
+        )
+        let bp = ((0.055 * W, 0.30 * H),)
+        let cur = bp.at(0)
+        for (c1, c2, bp1) in bsegs {
+          for i in range(1, 13) {
+            let tt = i / 12
+            let mt = 1 - tt
+            bp.push((
+              mt * mt * mt * cur.at(0) + 3 * mt * mt * tt * c1.at(0)
+                + 3 * mt * tt * tt * c2.at(0) + tt * tt * tt * bp1.at(0),
+              mt * mt * mt * cur.at(1) + 3 * mt * mt * tt * c1.at(1)
+                + 3 * mt * tt * tt * c2.at(1) + tt * tt * tt * bp1.at(1),
+            ))
+          }
+          cur = bp1
+        }
+        place(top + left, vintage-pts(bp, colour, 1.2pt, closed: true,
+          vintage-pen: vintage-pen))
+      }
       // dry-brush streaks: thin slivers flying off both ends and the edges
       let sl = (
         ((0.000, 0.30, 0.115, 0.22, 0.015, 0.46), 1.0),
@@ -422,7 +498,18 @@
   text-fill: rgb("#0E5F6E"),
   year-fill: rgb("#141414"),
   text-size: 0.95em,
+  vintage: false,
+  vintage-pen: none,
+  body-offset-x: 0pt,
+  body-offset-y: 0pt,
 ) = context {
+
+  let print-mode = theme-state.get().mode == "print"
+  let base = if print-mode { white } else { base }
+  let text-fill = if print-mode { black } else { text-fill }
+  let year-fill = if print-mode { luma(224) } else { year-fill }
+  if print-mode { set text(fill: black) }
+
   layout(avail => {
     let W = if type(width) == ratio { avail.width * width }
             else if width == auto { avail.width } else { width }
@@ -501,11 +588,15 @@
                 year))))
         }
         if body != none {
-          place(top + left, dx: tw + 0.06 * W, dy: 0pt,
-            block(width: px - tw - 0.14 * W, height: H, align(center + horizon,
+          place(top + left, dx: (tw + 0.06 * W) + body-offset-x, dy: (0pt) + body-offset-y, block(width: px - tw - 0.14 * W, height: H, align(center + horizon,
               text(fill: year-fill, size: text-size, body))))
         }
       })
+      if vintage {
+        place(top + left, vintage-pts(
+          rounded-rect-pts((0pt, 0pt), (W, H), radius: rad), base, 1.4pt,
+          closed: true, vintage-pen: vintage-pen))
+      }
     })
   })
 }

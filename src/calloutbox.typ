@@ -6,7 +6,11 @@
 // ===========================================================================
 
 #import "fabox.typ": is-rtl
+#import "engine.typ": rounded-rect-pts
+#import "antique.typ": vintage-pts
 #import "watermark.typ": paint-watermark, resolve-wm-colour
+
+#import "theme.typ": theme-state
 
 #let _tail-tri(side, W, H, s, t) = {
   // (A on edge, tip, B on edge). The tip sits PAST A or B so the
@@ -41,7 +45,17 @@
   watermark-angle: -18deg,
   watermark-size: 2.1em,
   direction: auto,
+  vintage: false,      // main frame engraved with an elliptical nib
+  vintage-pen: none,
+  title-offset-x: 0pt,
+  title-offset-y: 0pt,
 ) = context {
+  let print-mode = theme-state.get().mode == "print"
+  let colour = if print-mode { black } else { colour }
+  let fill = if print-mode { white } else { fill }
+  let title-colour = if print-mode { black } else { title-colour }
+  if print-mode { set text(fill: black) }
+
   let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
   let body-dir = if rtl { std.rtl } else { ltr }
   let side = if tail == "start" { if rtl { "se" } else { "sw" } }
@@ -71,10 +85,16 @@
       let y0 = up
       place(top + left, dy: y0,
         box(width: W, height: H, fill: fill, radius: radius,
-          stroke: weight + colour))
-      if title != none {
+          stroke: if vintage { none } else { weight + colour }))
+      if vintage {
         place(top + left, dy: y0,
-          box(width: W, height: bar-h, fill: colour,
+          vintage-pts(rounded-rect-pts((0pt, 0pt), (W, H), radius: radius, n: 10),
+            colour, weight, vintage-pen: vintage-pen))
+      }
+      if title != none {
+        place(top + left, dy: (y0) + title-offset-y, dx: title-offset-x, box(width: W, height: bar-h,
+            fill: if print-mode { white } else { colour },
+            stroke: if print-mode { (paint: black, thickness: weight) } else { none },
             radius: (top: radius, bottom: 0pt),
             align(center + horizon, title-body)))
       }

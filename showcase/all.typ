@@ -12,4 +12,3 @@
 #pagebreak()
 #include "page-cover.typ"
 #include "page-bound.typ"
-#include "page-ornate.typ"

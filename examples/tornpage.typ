@@ -1,6 +1,6 @@
 // faboxyst — tornpage: a paper note with a fractal-torn bottom edge,
 // after the tcolorbox `tcbnote` (TeX.SE 586474, CC BY-SA 4.0).
-#import "@preview/faboxyst:0.2.0": *
+#import "../lib.typ": *
 
 #set page(paper: "a4", margin: (x: 1.6cm, y: 1.4cm), fill: white)
 #set text(size: 10pt)
@@ -16,7 +16,7 @@
 #v(0.8cm)
 
 #tornpage(title: [Carnet de terrain], width: 72%)[
-  Les coins sont vifs, le filet presque invisible, et le titre en gras
+  Les coins sont vifs, le contour fin de 0,4 pt, et le titre en gras
   s'assoit au centre du haut de la feuille, comme sur l'original.
 ]
 

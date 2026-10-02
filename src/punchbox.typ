@@ -6,6 +6,9 @@
 // ===========================================================================
 
 #import "fabox.typ": is-rtl
+#import "antique.typ": vintage-pts
+
+#import "theme.typ": theme-state
 
 #let punchbox(
   body,
@@ -26,7 +29,23 @@
   inset: 0.38cm,
   width: 100%,
   direction: auto,
+  vintage: false,      // main frame engraved with an elliptical nib
+  vintage-pen: none,
+  body-offset-x: 0pt,
+  body-offset-y: 0pt,
+  title-offset-x: 0pt,
+  title-offset-y: 0pt,
 ) = context {
+  let print-mode = theme-state.get().mode == "print"
+  let colour = if print-mode { white } else { colour }
+  let badge-fill = if print-mode { luma(224) } else { badge-fill }
+  let bar = if print-mode { white } else { bar }
+  let hole = if print-mode { luma(224) } else { hole }
+  let side = if print-mode { black } else { side }
+  let fill = if print-mode { white } else { fill }
+  let title-colour = if print-mode { black } else { title-colour }
+  if print-mode { set text(fill: black) }
+
   let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
   let body-dir = if rtl { std.rtl } else { ltr }
   let bh0 = bar-height
@@ -35,7 +54,7 @@
     text(fill: title-colour, weight: "bold", size: 0.82em, title)
   }
   let num-body = if number == none { none } else {
-    text(fill: white, weight: "bold", size: 0.92em, dir: ltr, number)
+    text(fill: if print-mode { black } else { white }, weight: "bold", size: 0.92em, dir: ltr, number)
   }
   let tm = if title-body == none { (width: 0pt, height: 0pt) }
            else { measure(title-body) }
@@ -77,12 +96,21 @@
       place(top + left, box(width: W, height: H, fill: fill))
 
       // green side rules — from under the bar to the bottom
-      place(top + left, dx: 0pt, dy: bh0,
-        line(length: H - bh0, angle: 90deg,
-          stroke: (paint: side, thickness: side-weight, cap: "butt")))
-      place(top + left, dx: W, dy: bh0,
-        line(length: H - bh0, angle: 90deg,
-          stroke: (paint: side, thickness: side-weight, cap: "butt")))
+      if vintage {
+        place(top + left, dx: 0pt, dy: bh0,
+          vintage-pts(((0pt, 0pt), (0pt, H - bh0)), side, side-weight,
+            closed: false, vintage-pen: vintage-pen))
+        place(top + left, dx: W, dy: bh0,
+          vintage-pts(((0pt, 0pt), (0pt, H - bh0)), side, side-weight,
+            closed: false, vintage-pen: vintage-pen))
+      } else {
+        place(top + left, dx: 0pt, dy: bh0,
+          line(length: H - bh0, angle: 90deg,
+            stroke: (paint: side, thickness: side-weight, cap: "butt")))
+        place(top + left, dx: W, dy: bh0,
+          line(length: H - bh0, angle: 90deg,
+            stroke: (paint: side, thickness: side-weight, cap: "butt")))
+      }
 
       // punch bar
       place(top + left, box(width: W, height: bh0, fill: bar))
@@ -102,8 +130,7 @@
         } else {
           (right: overlap + 0.10cm, left: 0.16cm, y: 0pt)
         }
-        place(top + left, dx: tab-x, dy: 0pt,
-          box(
+        place(top + left, dx: (tab-x) + title-offset-x, dy: (0pt) + title-offset-y, box(
             width: tab-w,
             height: tab-h,
             fill: colour,
@@ -113,8 +140,7 @@
           ))
       }
       if number != none {
-        place(top + left, dx: badge-x, dy: 0pt,
-          box(
+        place(top + left, dx: (badge-x) + body-offset-x, dy: (0pt) + body-offset-y, box(
             width: badge-w, height: badge-d,
             fill: badge-fill, radius: 50%,
             align(center + horizon, num-body),
