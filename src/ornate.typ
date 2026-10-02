@@ -15,7 +15,6 @@
 //    #mihrabbox(title: [Exercise 1])[…]
 //    #mosaicbox[…]                       a tessellated course on four sides
 //    #fleuronbox(title: [Preface])[…]    glyphs of an ornament font
-//    #show: ornate-pages.with(preset: arabesquebox, margin: 1cm)
 //
 //  Layers, back to front: shadow · paper · rules · edge bands · edge
 //  motifs · centre pieces · corners · title band · flank and end motifs ·
@@ -28,9 +27,12 @@
 // ===========================================================================
 
 #import "fabox.typ": is-rtl
+#import "engine.typ": rounded-rect-pts
+#import "antique.typ": vintage-pts
 #import "watermark.typ": paint-watermark, resolve-wm-colour
 #import "ornament.typ": (make-palette, resolve-motif, glyph-motif,
   ngon-points, star-points, STAR8, poly, disc, hair)
+#import "theme.typ": theme-state
 
 #let _cm(x) = if type(x) == length { x } else { x * 1cm }
 
@@ -177,7 +179,7 @@
     if o.at(0) == "line" { ("line", mx(o.at(1))) }
     else { ("cubic", mx(o.at(1)), mx(o.at(2)), mx(o.at(3))) }
   })
-  let cap-l = _rev-ops((xr - ll, y0), mirrored).map(o => o)
+  let cap-l = _rev-ops((xl + ll, y0), mirrored).map(o => o)
   // the reversed mirrored cap starts at the mirror of the right cap's end,
   // i.e. (xl + ll, y1), and ends at (xl + ll, y0)
   let rel(p) = (p.at(0) - xl, p.at(1) - y0)
@@ -348,7 +350,23 @@
   watermark-angle: -18deg,
   watermark-size: 2.1em,
   direction: auto,
+  vintage: false,      // the frame rules engraved with a nib
+  vintage-pen: none,
+  title-offset-x: 0pt,
+  title-offset-y: 0pt,
 ) = context {
+  let print-mode = theme-state.get().mode == "print"
+  let colour = if print-mode { black } else { colour }
+  let gold = if print-mode { luma(224) } else { gold }
+  let paper = if print-mode { white } else { paper }
+  let palette = if print-mode {
+    (tile: luma(224), ink: black, gold: luma(224), paper: white,
+      accent: luma(224), light: luma(224))
+  } else { palette }
+  let fill = if print-mode { white } else { fill }
+  let title-colour = if print-mode { black } else { title-colour }
+  let sash-fill = if print-mode { white } else { sash-fill }
+  if print-mode { set text(fill: black) }
   let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
   let body-dir = if rtl { std.rtl } else { ltr }
   let pal = make-palette(ink: colour, gold: gold, paper: paper, ..palette)
@@ -439,6 +457,20 @@
   layout(avail => {
     let W = if type(width) == ratio { avail.width * width } else { _cm(width) }
 
+    // A long title wraps INSIDE the band and the band grows with it: measure
+    // the title at the width that is really available (flat part of the sash,
+    // or the room left of the pennant) instead of on a single line.
+    let (th, tm) = if not has-band { (th, tm) } else {
+      let bx0 = if title-style == "tiles" { o } else { o + band-t + sin-l }
+      let bx1 = if title-style == "tiles" { W - o } else { W - o - band-t - sin-r }
+      let lead0 = if badge != none and title-style != "tiles" { bsz * 0.75 } else { 0pt }
+      let aw = if title-style == "tiles" { (bx1 - bx0) * 0.62 - 2 * cl }
+               else { bx1 - bx0 - 2 * cl - lead0 }
+      let aw = calc.max(aw - 2 * t-ins.x, 1.5cm)
+      let m2 = measure(box(width: calc.min(aw, tm.width + 0.01cm), title-body))
+      (calc.max(th, m2.height + 2 * t-ins.y), m2)
+    }
+
     // band geometry (y relative to the frame's top edge)
     let band-y0 = if title-style == "tiles" { o } else { o + band-t + sgap }
     let band-y1 = band-y0 + th
@@ -472,10 +504,18 @@
     // --- one rule rectangle -----------------------------------------------
     let rule-rect(inset, r) = {
       let t = r.thickness
-      place(top + left, dx: inset + t / 2, dy: inset + t / 2,
-        rect(width: W - 2 * inset - t, height: H - 2 * inset - t,
-          stroke: (paint: r.paint, thickness: t, join: "miter"),
-          radius: calc.max(0pt, _cm(radius) - (inset - o))))
+      let rad = calc.max(0pt, _cm(radius) - (inset - o))
+      if vintage {
+        place(top + left, dx: inset + t / 2, dy: inset + t / 2,
+          vintage-pts(rounded-rect-pts((0pt, 0pt),
+            (W - 2 * inset - t, H - 2 * inset - t), radius: rad, n: 10),
+            r.paint, t, vintage-pen: vintage-pen))
+      } else {
+        place(top + left, dx: inset + t / 2, dy: inset + t / 2,
+          rect(width: W - 2 * inset - t, height: H - 2 * inset - t,
+            stroke: (paint: r.paint, thickness: t, join: "miter"),
+            radius: rad))
+      }
     }
 
     // --- one motif, centred at (cx, cy), optionally rotated ----------------
@@ -590,7 +630,7 @@
         }
       }
 
-      place(top + left, dy: hang-t, block(width: W, height: H, {
+      place(top + left, dy: (hang-t) + title-offset-y, dx: title-offset-x, block(width: W, height: H, {
         // 1. paper
         place(top + left, dx: o, dy: o,
           rect(width: W - 2 * o, height: H - 2 * o, fill: fill, radius: _cm(radius)))
@@ -716,7 +756,7 @@
   edge-band: 0.36cm, edge-shift: 0.18cm,
   corner: (bottom: "wedge"), corner-size: 0.62cm,
   centre: (bottom: "rosette"), centre-size: 0.36cm,
-  caps: ("flat", "arch"), sash-inset: (0cm, 1.1cm), sash-gap: 0.12cm,
+  caps: ("arch", "arch"), sash-inset: (0.4cm, 0.4cm), sash-gap: 0.12cm,
   ..a)
 
 /// A course of zellij tiles across the top with a paper pennant for the
@@ -790,30 +830,3 @@
   caps: ("ogee", "ogee"), cap-len: 0.5cm, sash-inset: (0.9cm, 0.9cm),
   title-align: center, title-gap: 0.3cm,
   ..a)
-
-// ---------------------------------------------------------------------------
-//  page frames
-// ---------------------------------------------------------------------------
-
-/// Draw a frame on every page's background and keep the text inside it.
-///
-///   #show: ornate-pages.with(preset: arabesquebox, margin: 1cm)
-///
-/// `preset` is any of the box functions (or `ornatebox` itself) — extra
-/// arguments go straight to it. `margin` is the distance from the paper
-/// edge to the outer rule; `inner` the paper left between the frame and
-/// the text (auto = 0.85cm). The page margins are set to `margin + inner`.
-#let ornate-pages(doc, preset: ornatebox, margin: 1.2cm, inner: auto, ..args) = {
-  let m = _cm(margin)
-  let gap = if inner == auto { 0.85cm } else { _cm(inner) }
-  set page(
-    margin: m + gap,
-    background: context {
-      let fw = page.width - 2 * m
-      let fh = page.height - 2 * m
-      place(top + left, dx: m, dy: m,
-        preset([], width: fw, height: fh, ..args.named()))
-    },
-  )
-  doc
-}

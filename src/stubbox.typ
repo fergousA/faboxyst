@@ -6,6 +6,10 @@
 // ===========================================================================
 
 #import "fabox.typ": is-rtl
+#import "engine.typ": rounded-rect-pts
+#import "antique.typ": vintage-pts
+
+#import "theme.typ": theme-state
 
 #let stubbox(
   body,
@@ -22,7 +26,15 @@
   inset: 0.34cm,
   width: 100%,
   direction: auto,
+  vintage: false,      // main frame engraved with an elliptical nib
+  vintage-pen: none,
 ) = context {
+  let print-mode = theme-state.get().mode == "print"
+  let colour = if print-mode { black } else { colour }
+  let stub-colour = if print-mode { black } else { stub-colour }
+  let fill = if print-mode { white } else { fill }
+  if print-mode { set text(fill: black) }
+
   let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
   let body-dir = if rtl { std.rtl } else { ltr }
   let sw = stub-width
@@ -51,11 +63,18 @@
       }
       place(top + left,
         box(width: W, height: H, fill: fill, radius: radius,
-          stroke: frame-weight + colour.darken(10%)))
+          stroke: if vintage { none } else { frame-weight + colour.darken(10%) }))
+      if vintage {
+        place(top + left,
+          vintage-pts(rounded-rect-pts((0pt, 0pt), (W, H), radius: radius, n: 10),
+            colour.darken(10%), frame-weight, vintage-pen: vintage-pen))
+      }
 
       let sx = if rtl { W - sw } else { 0pt }
       place(top + left, dx: sx,
-        box(width: sw, height: H, fill: colour,
+        box(width: sw, height: H,
+          fill: if print-mode { luma(224) } else { colour },
+          stroke: if print-mode { (paint: black, thickness: frame-weight) } else { none },
           radius: if rtl { (top-right: radius, bottom-right: radius, rest: 0pt) }
                   else { (top-left: radius, bottom-left: radius, rest: 0pt) }))
 

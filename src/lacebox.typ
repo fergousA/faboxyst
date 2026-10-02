@@ -27,10 +27,13 @@
 #import "@preview/cetz:0.5.2"
 #import "engine.typ" as eng
 #import "fabox.typ": is-rtl
+#import "antique.typ": vintage-pts
 #import "lace.typ": lace as lace-draw
 #import "pgfornament.typ": pgfornament
 
 /// A canvas of exactly (w, h), y running downward from the top-left corner.
+#import "theme.typ": theme-state
+
 #let _canvas(w, h, body) = {
   cetz.canvas(length: 1cm, {
     body(w / 1cm, h / 1cm)
@@ -123,7 +126,16 @@
   rough: 0,
   ornament: none,
   ornament-family: "vectorian",
+  vintage: false,      // the sheet rules engraved with a nib
+  vintage-pen: none,
+  title-offset-x: 0pt,
+  title-offset-y: 0pt,
 ) = context {
+  let print-mode = theme-state.get().mode == "print"
+  let colour = if print-mode { black } else { colour }
+  let fill = if print-mode { white } else { fill }
+  if print-mode { set text(fill: black) }
+
   let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
   let body-dir = if rtl { std.rtl } else { ltr }
 
@@ -147,11 +159,16 @@
 
     box(width: W, height: H, clip: true, {
       // the sheet; its outer rule is drawn later when rough
-      if rough > 0 {
+      if rough > 0 or vintage {
         place(top + left, rect(width: W, height: H, fill: fill))
       } else {
         place(top + left, rect(width: W, height: H, fill: fill,
           stroke: (paint: colour, thickness: weight)))
+      }
+      if vintage {
+        place(top + left,
+          vintage-pts(((0pt, 0pt), (W, 0pt), (W, H), (0pt, H)),
+            colour, weight, vintage-pen: vintage-pen))
       }
       if model == "corners" {
         // a double rule round the sheet…
@@ -161,7 +178,7 @@
             _rrect(0.14, 0.14, Wc - 0.28, Hc - 0.28, 41, rough, none,
               colour, 0.6pt)
           }))
-        } else {
+        } else if not vintage {
           place(top + left, dx: 0.14cm, dy: 0.14cm,
             rect(width: W - 0.28cm, height: H - 0.28cm,
               stroke: (paint: colour, thickness: 0.6pt)))
@@ -297,8 +314,7 @@
         let tm = measure(text(weight: "bold", title))
         let pw2 = tm.width + 1.0cm
         let ph2 = tm.height + 0.5cm
-        place(top + left, dx: W / 2 - pw2 / 2, dy: plate-y - ph2 / 2,
-          box(width: pw2, height: ph2, {
+        place(top + left, dx: (W / 2 - pw2 / 2) + title-offset-x, dy: (plate-y - ph2 / 2) + title-offset-y, box(width: pw2, height: ph2, {
             if rough > 0 {
               place(top + left, _canvas(pw2, ph2, (Wc, Hc) => {
                 _rrect(0, 0, Wc, Hc, 53, rough, fill, colour, 0.8pt)

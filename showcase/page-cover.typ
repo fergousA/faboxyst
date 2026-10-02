@@ -1,4 +1,4 @@
-#import "@preview/faboxyst:0.2.0": *
+#import "../lib.typ": *
 #set text(font: "DejaVu Sans")
 #set page(paper: "a4", margin: 0pt)
 

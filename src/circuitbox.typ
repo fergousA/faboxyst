@@ -7,6 +7,10 @@
 // ===========================================================================
 
 #import "fabox.typ": is-rtl
+#import "engine.typ": rounded-rect-pts
+#import "antique.typ": vintage-pts
+
+#import "theme.typ": theme-state
 
 #let _curl(w, h, paint, flip: false) = {
   let body = box(width: w, height: h, {
@@ -54,6 +58,37 @@
   ..parts,
 )
 
+/// #_trace as a plain point list (native space), for the nib.
+#let _trace-pts(W, H, r, s, sr, xs-l, xs-r, g0, g1) = {
+  let quad(a, c, b, n: 10) = range(1, n + 1).map(i => {
+    let t = i / n
+    let u = 1 - t
+    (u * u * a.at(0) + 2 * u * t * c.at(0) + t * t * b.at(0),
+     u * u * a.at(1) + 2 * u * t * c.at(1) + t * t * b.at(1))
+  })
+  let cubic(a, c1, c2, b, n: 12) = range(1, n + 1).map(i => {
+    let t = i / n
+    let u = 1 - t
+    (u * u * u * a.at(0) + 3 * u * u * t * c1.at(0) + 3 * u * t * t * c2.at(0) + t * t * t * b.at(0),
+     u * u * u * a.at(1) + 3 * u * u * t * c1.at(1) + 3 * u * t * t * c2.at(1) + t * t * t * b.at(1))
+  })
+  let pts = ((g0, -s),)
+  pts += ((xs-l + sr, -s),)
+  pts += cubic((xs-l + sr, -s), (xs-l + sr * 0.15, -s), (xs-l - sr * 0.15, 0pt), (xs-l - sr, 0pt))
+  pts += ((r, 0pt),)
+  pts += quad((r, 0pt), (0pt, 0pt), (0pt, r))
+  pts += ((0pt, H - r),)
+  pts += quad((0pt, H - r), (0pt, H), (r, H))
+  pts += ((W - r, H),)
+  pts += quad((W - r, H), (W, H), (W, H - r))
+  pts += ((W, r),)
+  pts += quad((W, r), (W, 0pt), (W - r, 0pt))
+  pts += ((xs-r + sr, 0pt),)
+  pts += cubic((xs-r + sr, 0pt), (xs-r + sr * 0.15, 0pt), (xs-r - sr * 0.15, -s), (xs-r - sr, -s))
+  pts += ((g1, -s),)
+  pts
+}
+
 #let circuitbox(
   body,
   title: none,
@@ -70,7 +105,16 @@
   inset: 0.38cm,
   width: 100%,
   direction: auto,
+  vintage: false,      // the frame engraved with a nib
+  vintage-pen: none,
+  title-offset-x: 0pt,
+  title-offset-y: 0pt,
 ) = context {
+  let print-mode = theme-state.get().mode == "print"
+  let colour = if print-mode { black } else { colour }
+  let fill = if print-mode { white } else { fill }
+  if print-mode { set text(fill: black) }
+
   let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
   let body-dir = if rtl { std.rtl } else { ltr }
   let tc = if title-colour == auto { colour } else { title-colour }
@@ -145,10 +189,21 @@
         _fill-trace(fill-parts, fill))
 
       // double stroke: fat colour, then a thin fill-coloured core
-      place(top + left, dx: x0, dy: y0,
-        _stroke-trace(open-parts, colour, frame-w))
-      place(top + left, dx: x0, dy: y0,
-        _stroke-trace(open-parts, fill, gutter))
+      // (the engraved mode draws a single nib pass)
+      if vintage {
+        let tp = if title == none {
+          rounded-rect-pts((0pt, 0pt), (card-w, H), radius: r, n: 10)
+        } else {
+          _trace-pts(card-w, H, r, s, sr, xs-l, xs-r, g0, g1)
+        }
+        place(top + left, dx: (x0) + title-offset-x, dy: (y0) + title-offset-y, vintage-pts(tp, colour, frame-w, closed: title == none,
+            vintage-pen: vintage-pen))
+      } else {
+        place(top + left, dx: x0, dy: y0,
+          _stroke-trace(open-parts, colour, frame-w))
+        place(top + left, dx: x0, dy: y0,
+          _stroke-trace(open-parts, fill, gutter))
+      }
 
       place(top + left, dx: x0 + inset, dy: y0 + inset, main)
 

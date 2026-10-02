@@ -25,6 +25,11 @@
 //  the poster's own palette, sampled from the source
 // -----------------------------------------------------------------------------
 
+#import "fabox.typ": is-rtl
+#import "antique.typ": vintage-outline
+
+#import "theme.typ": theme-state
+
 #let sb-colours = (
   page:      rgb("#EEE6DB"),   // the board behind everything
   kraft:     rgb("#E8D2C4"),   // the torn title paper
@@ -162,6 +167,7 @@
   pts, flip,
   fill: none, paint: none, w: 0.5pt, closed: true,
   hand: none, seed: 1, roughness: 1.0, bowing: 0.6, amplitude: 0.4,
+  vintage: false, vintage-pen: none,
 ) = {
   let out = ()
   if fill != none {
@@ -175,6 +181,10 @@
     }
   }
   if paint != none {
+    if vintage {
+      out.push(vintage-outline(pts, flip, paint, thickness: w, closed: closed,
+        vintage-pen: vintage-pen))
+    }
     let st = (paint: paint, thickness: w, join: "round", cap: "round")
     // A HAIRLINE MUST WOBBLE LESS THAN AN EDGE. rough.js displaces by a
     // fixed distance, so the same `roughness` that gives a torn edge its
@@ -186,7 +196,7 @@
       // rough.js draws every stroke TWICE — that double pass is what gives
       // a pencil edge its weight, but on a 0.4 pt ruling it just doubles
       // the ink and the line reads as bold. Fine strokes keep one pass.
-      let passes = rough-points(_sb-resample(pts, closed: closed),
+      let passes = md-rough-points(_sb-resample(pts, closed: closed),
         closed: closed, roughness: roughness * fine, bowing: bowing,
         seed: seed)
       let keep = if w < 0.9pt { passes.slice(0, 1) } else { passes }
@@ -194,7 +204,7 @@
     } else if hand == "sketch" {
       let ring = if closed { pts + (pts.first(),) } else { pts }
       out.push(md-sketched((_sb-resample(ring, closed: false),), flip: flip,
-        seed: seed, amplitude: amplitude * fine, stroke: st))
+        seed: seed, amplitude: amplitude * roughness * fine, stroke: st))
     } else {
       out.push(md-polylines(((if closed { pts + (pts.first(),) } else { pts }),),
         flip: flip, stroke: st))
@@ -298,12 +308,26 @@
   width: 12.0, pad: 0.85, fill: auto, tilt: 0deg,
   amp: 0.13, seed: 11, tape: auto, shadow: true, grain: true,
   rough: auto, hand: none, roughness: 1.0, bowing: 0.6,
-) = {
+
+  direction: auto,
+  vintage: false,      // the outline engraved with a nib
+  vintage-pen: none,
+) = context {
+  let print-mode = theme-state.get().mode == "print"
+  let fill = if print-mode { white } else { fill }
+  let tape = if print-mode { none } else { tape }
+  let grain = if print-mode { false } else { grain }
+  if print-mode { set text(fill: black) }
+
+  let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
+  set text(dir: if rtl { std.rtl } else { ltr })
+  set align(start)
+
   let bg = if fill != auto { fill } else { sb-colours.kraft }
   let H = _sb-hand(rough, hand, roughness)
   context {
     let inner = width - 2 * pad
-    let m = measure(box(width: inner * 1cm, body))
+    let m = measure(box(width: inner * 1cm, align(if rtl { right } else { left }, body)))
     let h = m.height / 1cm + 2 * pad
     let cts = _torn-rect(width, h, amp: amp, seed: seed)
     let flip = h * 1cm
@@ -317,13 +341,13 @@
         place(top + left, dx: 3pt, dy: 4pt,
           md-region((cts,), flip: flip, fill: sb-colours.shadow))
       }
-      _sb-draw(cts, flip, fill: bg, seed: seed, ..H, bowing: bowing)
+      _sb-draw(cts, flip, fill: bg, seed: seed, ..(H + ("vintage": vintage, "vintage-pen": vintage-pen)), bowing: bowing)
       // The torn edge exposes the paper's white core — a pale line just
       // inside the contour. Without it the sheet looks CUT, not torn.
       _sb-draw(cts, flip, paint: white.transparentize(35%), w: 1.6pt,
-        seed: seed + 2, ..H, bowing: bowing)
+        seed: seed + 2, ..(H + ("vintage": vintage, "vintage-pen": vintage-pen)), bowing: bowing)
       _sb-draw(cts, flip, paint: bg.darken(16%), w: 0.5pt,
-        seed: seed + 3, ..H, bowing: bowing)
+        seed: seed + 3, ..(H + ("vintage": vintage, "vintage-pen": vintage-pen)), bowing: bowing)
       if grain {
         for (seg, col) in _grain(width, h, seed: seed + 5, n: 130,
             ink: bg.darken(30%)) {
@@ -332,12 +356,15 @@
         }
       }
       place(top + left, dx: pad * 1cm, dy: pad * 1cm,
-        box(width: inner * 1cm, body))
+        box(width: inner * 1cm, align(if rtl { right } else { left }, body)))
       for t in tapes {
         let at = t.at("at", default: (1.0, -0.2))
         let args = (:)
         for (k, v) in t.pairs() { if k != "at" { args.insert(k, v) } }
-        place(top + left, dx: at.first() * 1cm, dy: at.last() * 1cm,
+        if rtl { args.insert("angle", -t.at("angle", default: -8deg)) }
+        place(if rtl { top + right } else { top + left },
+          dx: if rtl { -at.first() * 1cm } else { at.first() * 1cm },
+          dy: at.last() * 1cm,
           sb-tape(..args))
       }
     }))
@@ -365,16 +392,29 @@
   holes: auto, hole-side: auto, rule: "lines", ruling: 0.62,
   heart: false, tape: none, clip: false, shadow: true, seed: 21,
   rough: auto, hand: none, roughness: 1.0, bowing: 0.6,
-) = {
+
+  direction: auto,
+  vintage: false,      // the outline engraved with a nib
+  vintage-pen: none,
+) = context {
+  let print-mode = theme-state.get().mode == "print"
+  let fill = if print-mode { white } else { fill }
+  let tape = if print-mode { none } else { tape }
+  if print-mode { set text(fill: black) }
+
+  let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
+  set text(dir: if rtl { std.rtl } else { ltr })
+  set align(start)
+
   let bg = if fill != auto { fill } else { sb-colours.paper }
   let H = _sb-hand(rough, hand, roughness)
   context {
-    let r2l = text.dir == rtl
+    let r2l = rtl
     let left-punch = if hole-side != auto { hole-side == left } else { not r2l }
     let gutter = 1.15
     let inner = width - 2 * pad - gutter
     let head = if heart { 0.95 } else { 0.0 }
-    let m = measure(box(width: inner * 1cm, body))
+    let m = measure(box(width: inner * 1cm, align(if rtl { right } else { left }, body)))
     let h = m.height / 1cm + 2 * pad + head
     let flip = h * 1cm
     // top torn, the rest cut
@@ -383,7 +423,10 @@
     // it is side 2 — checked by rendering, not by reading the code.
     let cts = _torn-rect(width, h, amp: 0.11, seed: seed,
       sides: (0, 0, 1, 0))
-    let n = if holes != auto { holes } else { calc.max(2, int((h - 0.7) / 1.05)) }
+    let n = if holes == false or holes == 0 { 0 }
+            else if holes == true or holes == auto {
+              calc.max(2, int((h - 0.7) / 1.05))
+            } else { int(holes) }
     let hx = if left-punch { 0.52 } else { width - 0.52 }
 
     rotate(tilt, reflow: false, box(width: width * 1cm, height: h * 1cm, {
@@ -391,9 +434,9 @@
         place(top + left, dx: 3pt, dy: 4pt,
           md-region((cts,), flip: flip, fill: sb-colours.shadow))
       }
-      _sb-draw(cts, flip, fill: bg, seed: seed, ..H, bowing: bowing)
+      _sb-draw(cts, flip, fill: bg, seed: seed, ..(H + ("vintage": vintage, "vintage-pen": vintage-pen)), bowing: bowing)
       _sb-draw(cts, flip, paint: bg.darken(14%), w: 0.5pt,
-        seed: seed + 3, ..H, bowing: bowing)
+        seed: seed + 3, ..(H + ("vintage": vintage, "vintage-pen": vintage-pen)), bowing: bowing)
       // the ruling, kept clear of the punched gutter
       if rule == "lines" {
         let x0 = if left-punch { 1.10 } else { 0.30 }
@@ -402,17 +445,21 @@
         while y < h - 0.25 {
           _sb-draw(((x0, y), (x1, y)), flip, closed: false,
             paint: rgb("#B9C6CE").transparentize(38%), w: 0.5pt,
-            seed: seed + 40 + int(y * 7), ..H, bowing: bowing)
+            seed: seed + 40 + int(y * 7), ..(H + ("vintage": vintage, "vintage-pen": vintage-pen)), bowing: bowing)
           y = y + ruling
         }
       }
-      // the punch holes: a hole is a SHADOW plus a hole, or it reads as a dot
-      for i in range(n) {
-        let cy = 0.62 + i * ((h - 1.24) / calc.max(1, n - 1))
-        place(top + left, md-region((circle-pts((hx, cy), 0.145, n: 26),),
-          flip: flip, fill: bg.darken(20%)))
-        place(top + left, md-region((circle-pts((hx, cy + 0.022), 0.128,
-          n: 26),), flip: flip, fill: sb-colours.page))
+      // Punch holes on the LEADING edge (right in RTL). A hole is a dark
+      // rim plus a through-hole; filling with the sheet colour made them
+      // vanish on cream paper, so the core is a hard white.
+      if n > 0 {
+        for i in range(n) {
+          let cy = 0.62 + i * ((h - 1.24) / calc.max(1, n - 1))
+          place(top + left, md-region((circle-pts((hx, cy), 0.16, n: 26),),
+            flip: flip, fill: bg.darken(28%)))
+          place(top + left, md-region((circle-pts((hx, cy + 0.02), 0.125,
+            n: 26),), flip: flip, fill: white))
+        }
       }
       if heart {
         let cy = h - pad - 0.30
@@ -421,7 +468,7 @@
         for s in (-1, 1) {
           _sb-draw(((cx + s * 0.42, cy), (cx + s * (0.42 + seg), cy)), flip,
             closed: false, paint: sb-colours.rose.transparentize(25%),
-            w: 0.9pt, seed: seed + 30 + s, ..H, bowing: bowing)
+            w: 0.9pt, seed: seed + 30 + s, ..(H + ("vintage": vintage, "vintage-pen": vintage-pen)), bowing: bowing)
         }
         // `cy` is a FLIP coordinate (y up) but `dy` is a page offset (y
         // down): the heart and its own rules were a whole sheet apart until
@@ -432,13 +479,16 @@
       place(top + left,
         dx: (if left-punch { gutter + pad } else { pad }) * 1cm,
         dy: (pad + head) * 1cm,
-        box(width: inner * 1cm, body))
+        box(width: inner * 1cm, align(if rtl { right } else { left }, body)))
       if tape != none {
         let t = tape
         let at = t.at("at", default: (width / 2 - 1.0, -0.25))
         let args = (:)
         for (k, v) in t.pairs() { if k != "at" { args.insert(k, v) } }
-        place(top + left, dx: at.first() * 1cm, dy: at.last() * 1cm,
+        if rtl { args.insert("angle", -t.at("angle", default: -8deg)) }
+        place(if rtl { top + right } else { top + left },
+          dx: if rtl { -at.first() * 1cm } else { at.first() * 1cm },
+          dy: at.last() * 1cm,
           sb-tape(..args))
       }
     }))
@@ -521,14 +571,29 @@
   mat: auto, fill: auto, scallop: 0.20, holes: true, through: auto,
   pin: true, shadow: true, seed: 31,
   rough: auto, hand: none, roughness: 1.0, bowing: 0.6,
-) = {
+
+  direction: auto,
+  vintage: false,      // the outline engraved with a nib
+  vintage-pen: none,
+) = context {
+  let print-mode = theme-state.get().mode == "print"
+  let fill = if print-mode { white } else { fill }
+  let mat = if print-mode { luma(224) } else { mat }
+  let through = if print-mode { white } else { through }
+  let pin = if print-mode { false } else { pin }
+  if print-mode { set text(fill: black) }
+
+  let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
+  set text(dir: if rtl { std.rtl } else { ltr })
+  set align(start)
+
   let matc = if mat != auto { mat } else { sb-colours.sage }
   let bg = if fill != auto { fill } else { sb-colours.card }
   let through = if through != auto { through } else { sb-colours.page }
   let H = _sb-hand(rough, hand, roughness)
   context {
     let inner = width - 2 * pad - 2 * margin
-    let m = measure(box(width: inner * 1cm, body))
+    let m = measure(box(width: inner * 1cm, align(if rtl { right } else { left }, body)))
     let ch = m.height / 1cm + 2 * pad
     let cw = width - 2 * margin
     let mh = ch + 2 * margin
@@ -552,9 +617,9 @@
               place(top + left, dx: 3pt, dy: 4pt,
                 md-region((cts,), flip: mflip, fill: sb-colours.shadow))
             }
-            _sb-draw(cts, mflip, fill: matc, seed: seed, ..H, bowing: bowing)
+            _sb-draw(cts, mflip, fill: matc, seed: seed, ..(H + ("vintage": vintage, "vintage-pen": vintage-pen)), bowing: bowing)
             _sb-draw(cts, mflip, paint: matc.darken(12%), w: 0.4pt,
-              seed: seed + 3, ..H, bowing: bowing)
+              seed: seed + 3, ..(H + ("vintage": vintage, "vintage-pen": vintage-pen)), bowing: bowing)
             // the punched row: the hole shows the PAGE through the mat, so
             // it is filled with the backdrop colour, not merely darkened
             if holes {
@@ -569,7 +634,7 @@
                   let cy = y0 + (y1 - y0) * t
                   _sb-draw(circle-pts((cx, cy), r, n: 18), mflip,
                     fill: through, paint: matc.darken(14%), w: 0.35pt,
-                    seed: seed + int(cx * 31 + cy * 7), ..H, bowing: bowing)
+                    seed: seed + int(cx * 31 + cy * 7), ..(H + ("vintage": vintage, "vintage-pen": vintage-pen)), bowing: bowing)
                 }
               }
               run(inset, mh - inset, width - inset, mh - inset)
@@ -586,11 +651,11 @@
           let r = rect-pts((0.0, 0.0), (cw, ch))
           place(top + left, dx: 2.5pt, dy: 3pt,
             md-region((r,), flip: cflip, fill: sb-colours.shadow))
-          _sb-draw(r, cflip, fill: bg, seed: seed + 11, ..H, bowing: bowing)
+          _sb-draw(r, cflip, fill: bg, seed: seed + 11, ..(H + ("vintage": vintage, "vintage-pen": vintage-pen)), bowing: bowing)
           _sb-draw(r, cflip, paint: bg.darken(14%), w: 0.4pt,
-            seed: seed + 12, ..H, bowing: bowing)
+            seed: seed + 12, ..(H + ("vintage": vintage, "vintage-pen": vintage-pen)), bowing: bowing)
           place(top + left, dx: pad * 1cm, dy: pad * 1cm,
-            box(width: inner * 1cm, body))
+            box(width: inner * 1cm, align(if rtl { right } else { left }, body)))
         })))
       if pin != none and pin != false {
         let pa = if type(pin) == dictionary { pin } else { (:) }
@@ -685,7 +750,6 @@
 }
 
 #let sb-clip(w: 0.62, h: auto, angle: 0deg, colour: auto, wire: auto) = {
-  let col = if colour != auto { colour } else { rgb("#B9997C") }
   // the source's proportions, so a caller only has to give a width
   let hh = if h != auto { h } else { w * 3.07 }
   let lw = if wire != auto { wire } else { w * 0.085 * 28.35 * 1pt }
@@ -693,7 +757,12 @@
   let flip = hh * 1cm
   // Three passes make the wire ROUND: a dark casing, the body colour, and a
   // thin highlight down the middle. A single stroke reads as a flat ribbon.
-  let draw(paths) = box(width: w * 1cm, height: hh * 1cm, {
+  // `context` lives here, not around the call: the three pieces are plain
+  // content, so `sb-clip(..).whole` works anywhere (no `#context` needed).
+  let draw(paths) = context box(width: w * 1cm, height: hh * 1cm, {
+    let print-mode = theme-state.get().mode == "print"
+    let col = if print-mode { black }
+      else if colour != auto { colour } else { rgb("#B9997C") }
     for (mul, c) in ((1.55, col.darken(30%)), (1.0, col),
                      (0.30, white.transparentize(30%))) {
       for path in paths {
@@ -733,13 +802,27 @@
   grid-ink: auto, tape: none, clip: false, clip-at: 0.80,
   shadow: true, seed: 41,
   rough: auto, hand: none, roughness: 1.0, bowing: 0.6,
-) = {
+
+  direction: auto,
+  vintage: false,      // the outline engraved with a nib
+  vintage-pen: none,
+) = context {
+  let print-mode = theme-state.get().mode == "print"
+  let fill = if print-mode { white } else { fill }
+  let grid-ink = if print-mode { luma(224) } else { grid-ink }
+  let tape = if print-mode { none } else { tape }
+  if print-mode { set text(fill: black) }
+
+  let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
+  set text(dir: if rtl { std.rtl } else { ltr })
+  set align(start)
+
   let bg = if fill != auto { fill } else { sb-colours.grid }
   let gi = if grid-ink != auto { grid-ink } else { bg.darken(11%) }
   let H = _sb-hand(rough, hand, roughness)
   context {
     let inner = width - 2 * pad
-    let m = measure(box(width: inner * 1cm, body))
+    let m = measure(box(width: inner * 1cm, align(if rtl { right } else { left }, body)))
     let h = m.height / 1cm + 2 * pad
     let flip = h * 1cm
     let cts = _torn-rect(width, h, amp: 0.05, seed: seed)
@@ -766,46 +849,44 @@
             place(top + left, dx: 3pt, dy: 4pt,
               md-region((cts,), flip: flip, fill: sb-colours.shadow))
           }
-          _sb-draw(cts, flip, fill: bg, seed: seed, ..H, bowing: bowing)
+          _sb-draw(cts, flip, fill: bg, seed: seed, ..(H + ("vintage": vintage, "vintage-pen": vintage-pen)), bowing: bowing)
           // the squares, clipped to the sheet by drawing them first and
           // covering the overshoot with the sheet's own outline
           if grid != none {
             let x = grid
             while x < width {
               _sb-draw(((x, 0.06), (x, h - 0.06)), flip, closed: false,
-                paint: gi, w: 0.35pt, seed: seed + int(x * 13), ..H,
+                paint: gi, w: 0.35pt, seed: seed + int(x * 13), ..(H + ("vintage": vintage, "vintage-pen": vintage-pen)),
                 bowing: bowing)
               x = x + grid
             }
             let y = grid
             while y < h {
               _sb-draw(((0.06, y), (width - 0.06, y)), flip, closed: false,
-                paint: gi, w: 0.35pt, seed: seed + 90 + int(y * 13), ..H,
+                paint: gi, w: 0.35pt, seed: seed + 90 + int(y * 13), ..(H + ("vintage": vintage, "vintage-pen": vintage-pen)),
                 bowing: bowing)
               y = y + grid
             }
           }
           _sb-draw(cts, flip, paint: bg.darken(20%), w: 0.5pt,
-            seed: seed + 3, ..H, bowing: bowing)
+            seed: seed + 3, ..(H + ("vintage": vintage, "vintage-pen": vintage-pen)), bowing: bowing)
           place(top + left, dx: pad * 1cm, dy: pad * 1cm,
-            box(width: inner * 1cm, body))
+            box(width: inner * 1cm, align(if rtl { right } else { left }, body)))
         })))
       if tape != none {
         let t = tape
         let at = t.at("at", default: (width * 0.28, 0.0))
         let args = (:)
         for (k, v) in t.pairs() { if k != "at" { args.insert(k, v) } }
-        place(top + left, dx: at.first() * 1cm, dy: at.last() * 1cm,
+        if rtl { args.insert("angle", -t.at("angle", default: -8deg)) }
+        place(if rtl { top + right } else { top + left },
+          dx: if rtl { -at.first() * 1cm } else { at.first() * 1cm },
+          dy: at.last() * 1cm,
           sb-tape(..args))
       }
       if clip {
-        // The WHOLE clip shows: it lies on top of the sheet and simply
-        // overhangs the edge. Sending either run behind the paper hides a
-        // third of the wire — the outer loop's lower bend if it is the
-        // outer one, the inner strand if it is that. The clip still reads
-        // as gripping because it straddles the edge, which is what the eye
-        // actually uses.
-        place(top + left, dx: clip-at * width * 1cm, dy: 0cm, cl.whole)
+        let cx = if rtl { (1 - clip-at) * width - cl.w } else { clip-at * width }
+        place(top + left, dx: cx * 1cm, dy: 0cm, cl.whole)
       }
     })
   }
@@ -832,7 +913,21 @@
   width: 9.4, pad: 0.75, fill: auto, tilt: 0deg, rules: true, ruling: 0.60,
   note-fill: auto, clip: false, clip-at: 0.80, shadow: true, seed: 51,
   rough: auto, hand: none, roughness: 1.0, bowing: 0.6,
-) = {
+
+  direction: auto,
+  vintage: false,      // the outline engraved with a nib
+  vintage-pen: none,
+) = context {
+  let print-mode = theme-state.get().mode == "print"
+  let fill = if print-mode { white } else { fill }
+  let note-fill = if print-mode { luma(224) } else { note-fill }
+  let rose = if print-mode { black } else { sb-colours.rose }
+  if print-mode { set text(fill: black) }
+
+  let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
+  set text(dir: if rtl { std.rtl } else { ltr })
+  set align(start)
+
   let bg = if fill != auto { fill } else { sb-colours.card }
   let nf = if note-fill != auto { note-fill } else { sb-colours.blush }
   let H = _sb-hand(rough, hand, roughness)
@@ -844,7 +939,7 @@
     let note-h = if note != none {
       measure(box(width: (inner - 0.5) * 1cm, note)).height / 1cm + 0.70
     } else { 0.0 }
-    let m = measure(box(width: inner * 1cm, body))
+    let m = measure(box(width: inner * 1cm, align(if rtl { right } else { left }, body)))
     let h = m.height / 1cm + 2 * pad + head-h + note-h
     let flip = h * 1cm
     let cts = _torn-rect(width, h, amp: 0.045, seed: seed)
@@ -860,13 +955,13 @@
             place(top + left, dx: 3pt, dy: 4pt,
               md-region((cts,), flip: flip, fill: sb-colours.shadow))
           }
-          _sb-draw(cts, flip, fill: bg, seed: seed, ..H, bowing: bowing)
+          _sb-draw(cts, flip, fill: bg, seed: seed, ..(H + ("vintage": vintage, "vintage-pen": vintage-pen)), bowing: bowing)
           if rules {
             let y = 0.35
             while y < h - 0.2 {
               _sb-draw(((0.25, y), (width - 0.25, y)), flip, closed: false,
                 paint: rgb("#C3B7A6").transparentize(55%), w: 0.4pt,
-                seed: seed + 60 + int(y * 7), ..H, bowing: bowing)
+                seed: seed + 60 + int(y * 7), ..(H + ("vintage": vintage, "vintage-pen": vintage-pen)), bowing: bowing)
               y = y + ruling
             }
           }
@@ -887,36 +982,32 @@
               fill: nf))
           }
           _sb-draw(cts, flip, paint: bg.darken(16%), w: 0.45pt,
-            seed: seed + 3, ..H, bowing: bowing)
+            seed: seed + 3, ..(H + ("vintage": vintage, "vintage-pen": vintage-pen)), bowing: bowing)
           // heading, its rule, then the body
           if heading != none {
             place(top + left, dx: pad * 1cm, dy: pad * 0.55 * 1cm,
-              box(width: inner * 1cm, heading))
+              box(width: inner * 1cm, align(if rtl { right } else { left }, heading)))
             let ry = h - pad * 0.55 - head-h + 0.34
             _sb-draw(((pad, ry), (width - pad, ry)), flip, closed: false,
-              paint: sb-colours.rose.transparentize(20%), w: 1.0pt,
-              seed: seed + 21, ..H, bowing: bowing)
+              paint: rose.transparentize(20%), w: 1.0pt,
+              seed: seed + 21, ..(H + ("vintage": vintage, "vintage-pen": vintage-pen)), bowing: bowing)
           }
           place(top + left, dx: pad * 1cm,
             dy: (pad * 0.55 + head-h) * 1cm,
-            box(width: inner * 1cm, body))
+            box(width: inner * 1cm, align(if rtl { right } else { left }, body)))
           if note != none {
             place(top + left, dx: (pad * 0.72) * 1cm,
               dy: (h - note-h - 0.02) * 1cm,
               box(width: (inner + 0.4) * 1cm, {
                 grid(columns: (auto, 1fr), column-gutter: 0.35em,
-                  text(fill: sb-colours.rose, mark), note)
+                  text(fill: rose, mark),
+                  align(if rtl { right } else { left }, note))
               }))
           }
         })))
       if clip {
-        // The WHOLE clip shows: it lies on top of the sheet and simply
-        // overhangs the edge. Sending either run behind the paper hides a
-        // third of the wire — the outer loop's lower bend if it is the
-        // outer one, the inner strand if it is that. The clip still reads
-        // as gripping because it straddles the edge, which is what the eye
-        // actually uses.
-        place(top + left, dx: clip-at * width * 1cm, dy: 0cm, cl.whole)
+        let cx = if rtl { (1 - clip-at) * width - cl.w } else { clip-at * width }
+        place(top + left, dx: cx * 1cm, dy: 0cm, cl.whole)
       }
     })
   }
@@ -971,13 +1062,29 @@
   width: 5.6, pad: 0.62, fill: auto, tilt: 1.6deg, amp: 0.020,
   tape: auto, shadow: true, seed: 61,
   rough: auto, hand: none, roughness: 1.0, bowing: 0.6,
-) = {
+
+  direction: auto,
+  vintage: false,      // the outline engraved with a nib
+  vintage-pen: none,
+) = context {
+  let print-mode = theme-state.get().mode == "print"
+  let fill = if print-mode { white } else { fill }
+  let tape = if print-mode { none } else { tape }
+  if print-mode { set text(fill: black) }
+
+  let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
+  set text(dir: if rtl { std.rtl } else { ltr })
+  set align(start)
+
   let bg = if fill != auto { fill } else { sb-colours.tag }
   let H = _sb-hand(rough, hand, roughness)
   context {
     let inner = width - 2 * pad
-    let m = measure(box(width: inner * 1cm, body))
-    let h = m.height / 1cm + 2 * pad
+    let m = measure(box(width: inner * 1cm, align(if rtl { right } else { left }, body)))
+    let tapes0 = if tape == none { () } else { (1,) }
+    // keep the text clear of the tape: the strip hangs ~0.45 cm below the top edge
+    let top-pad = if tapes0.len() > 0 { calc.max(pad, 1.0) } else { pad }
+    let h = m.height / 1cm + pad + top-pad
     let flip = h * 1cm
     let cts = _deckle-rect(width, h, amp: amp, seed: seed)
     let tapes = if tape == auto {
@@ -993,20 +1100,23 @@
             place(top + left, dx: 3pt, dy: 4pt,
               md-region((cts,), flip: flip, fill: sb-colours.shadow))
           }
-          _sb-draw(cts, flip, fill: bg, seed: seed, ..H, bowing: bowing)
+          _sb-draw(cts, flip, fill: bg, seed: seed, ..(H + ("vintage": vintage, "vintage-pen": vintage-pen)), bowing: bowing)
           // the feathered edge catches the light: a pale line just inside
           _sb-draw(cts, flip, paint: white.transparentize(52%), w: 0.9pt,
-            seed: seed + 2, ..H, bowing: bowing)
+            seed: seed + 2, ..(H + ("vintage": vintage, "vintage-pen": vintage-pen)), bowing: bowing)
           _sb-draw(cts, flip, paint: bg.darken(15%), w: 0.4pt,
-            seed: seed + 3, ..H, bowing: bowing)
-          place(top + left, dx: pad * 1cm, dy: pad * 1cm,
-            box(width: inner * 1cm, body))
+            seed: seed + 3, ..(H + ("vintage": vintage, "vintage-pen": vintage-pen)), bowing: bowing)
+          place(top + left, dx: pad * 1cm, dy: top-pad * 1cm,
+            box(width: inner * 1cm, align(if rtl { right } else { left }, body)))
         })))
       for t in tapes {
         let at = t.at("at", default: (0.55, -0.28))
         let args = (:)
         for (k, v) in t.pairs() { if k != "at" { args.insert(k, v) } }
-        place(top + left, dx: at.first() * 1cm, dy: (at.last() + 0.5) * 1cm,
+        if rtl { args.insert("angle", -t.at("angle", default: -8deg)) }
+        place(if rtl { top + right } else { top + left },
+          dx: if rtl { -at.first() * 1cm } else { at.first() * 1cm },
+          dy: (at.last() + 0.5) * 1cm,
           sb-tape(..args))
       }
     })
@@ -1086,16 +1196,29 @@
   rings: auto, ring: auto, ring-colour: auto, side: auto,
   shadow: true, seed: 71,
   rough: auto, hand: none, roughness: 1.0, bowing: 0.6,
-) = {
+
+  direction: auto,
+  vintage: false,      // the outline engraved with a nib
+  vintage-pen: none,
+) = context {
+  let print-mode = theme-state.get().mode == "print"
+  let fill = if print-mode { white } else { fill }
+  let ring-colour = if print-mode { black } else { ring-colour }
+  if print-mode { set text(fill: black) }
+
+  let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
+  set text(dir: if rtl { std.rtl } else { ltr })
+  set align(start)
+
   let bg = if fill != auto { fill } else { rgb("#F4EFEA") }
   let rc = if ring-colour != auto { ring-colour } else { rgb("#2B2622") }
   let H = _sb-hand(rough, hand, roughness)
   context {
-    let r2l = text.dir == rtl
+    let r2l = rtl
     let bind-left = if side != auto { side == left } else { not r2l }
     let gutter = 1.05
     let inner = width - 2 * pad - gutter
-    let m = measure(box(width: inner * 1cm, body))
+    let m = measure(box(width: inner * 1cm, align(if rtl { right } else { left }, body)))
     let h = calc.max(2.4, m.height / 1cm + 2 * pad)
     let flip = h * 1cm
     // `rings` names the COUNT and `pitch` follows from it; left to `auto`
@@ -1119,7 +1242,7 @@
         place(top + left, dx: 3pt, dy: 4pt,
           md-region((cts,), flip: flip, fill: sb-colours.shadow))
       }
-      _sb-draw(cts, flip, fill: bg, seed: seed, ..H, bowing: bowing)
+      _sb-draw(cts, flip, fill: bg, seed: seed, ..(H + ("vintage": vintage, "vintage-pen": vintage-pen)), bowing: bowing)
 
       if crumpled {
         let fac = _crumple(cts, width, h, n: creases, seed: seed + 5)
@@ -1140,7 +1263,7 @@
       }
 
       _sb-draw(cts, flip, paint: bg.darken(15%), w: 0.5pt,
-        seed: seed + 3, ..H, bowing: bowing)
+        seed: seed + 3, ..(H + ("vintage": vintage, "vintage-pen": vintage-pen)), bowing: bowing)
 
       // ---- the coil ----------------------------------------------------
       //
@@ -1206,7 +1329,7 @@
       place(top + left,
         dx: (if bind-left { gutter + pad } else { pad }) * 1cm,
         dy: pad * 1cm,
-        box(width: inner * 1cm, align(start, body)))
+        box(width: inner * 1cm, align(if rtl { right } else { left }, body)))
     }))
   }
 }
@@ -1256,13 +1379,31 @@
   banner-w: auto, banner-h: 0.92, notch: 0.21,
   clip: true, clip-at: 0.10, shadow: true, seed: 81,
   rough: auto, hand: none, roughness: 1.0, bowing: 0.6,
-) = {
+
+  direction: auto,
+  vintage: false,      // the outline engraved with a nib
+  vintage-pen: none,
+  body-offset-x: 0pt,
+  body-offset-y: 0pt,
+  title-offset-x: 0pt,
+  title-offset-y: 0pt,
+) = context {
+  let print-mode = theme-state.get().mode == "print"
+  let fill = if print-mode { white } else { fill }
+  let ink = if print-mode { black } else { ink }
+  let rule-ink = if print-mode { luma(224) } else { rule-ink }
+  if print-mode { set text(fill: black) }
+
+  let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
+  set text(dir: if rtl { std.rtl } else { ltr })
+  set align(start)
+
   let bg = if fill != auto { fill } else { rgb("#FCF9F4") }
   let gi = if ink != auto { ink } else { rgb("#1D7A3D") }
   let ri = if rule-ink != auto { rule-ink } else { rgb("#BFD3E8") }
   let H = _sb-hand(rough, hand, roughness)
   context {
-    let r2l = text.dir == rtl
+    let r2l = rtl
     let inner = width - 2 * pad
     // The banner straddles the frame's top rule, so the card has to reserve
     // room ABOVE itself for the part that sticks out — measured at 0.97 of
@@ -1274,34 +1415,34 @@
     // separate label rather than pinned across its edge.
     let over = bh * 0.97
     let head = if title != none { 0.30 } else { 0.0 }
-    let m = measure(box(width: inner * 1cm, body))
+    let m = measure(box(width: inner * 1cm, align(if rtl { right } else { left }, body)))
     let h = m.height / 1cm + 2 * pad + head
     let flip = h * 1cm
     let fr = _round-rect(width, h, r: radius)
 
     box(width: width * 1cm, height: (h + over) * 1cm, {
-      place(top + left, dy: over * 1cm, rotate(tilt, reflow: false,
+      place(top + left, dy: (over * 1cm) + body-offset-y, dx: body-offset-x, rotate(tilt, reflow: false,
         box(width: width * 1cm, height: h * 1cm, {
           if shadow {
             place(top + left, dx: 3pt, dy: 4pt,
               md-region((fr,), flip: flip, fill: sb-colours.shadow))
           }
-          _sb-draw(fr, flip, fill: bg, seed: seed, ..H, bowing: bowing)
+          _sb-draw(fr, flip, fill: bg, seed: seed, ..(H + ("vintage": vintage, "vintage-pen": vintage-pen)), bowing: bowing)
           // the ruled paper, kept inside the frame
           if rule {
             let y = 0.40
             while y < h - 0.30 {
               _sb-draw(((0.30, y), (width - 0.30, y)), flip, closed: false,
-                paint: ri, w: 0.4pt, seed: seed + 20 + int(y * 7), ..H,
+                paint: ri, w: 0.4pt, seed: seed + 20 + int(y * 7), ..(H + ("vintage": vintage, "vintage-pen": vintage-pen)),
                 bowing: bowing)
               y = y + ruling
             }
           }
           // the frame itself, over the ruling
-          _sb-draw(fr, flip, paint: gi, w: 1.5pt, seed: seed + 3, ..H,
+          _sb-draw(fr, flip, paint: gi, w: 1.5pt, seed: seed + 3, ..(H + ("vintage": vintage, "vintage-pen": vintage-pen)),
             bowing: bowing)
           place(top + left, dx: pad * 1cm, dy: (pad + head) * 1cm,
-            box(width: inner * 1cm, align(start, body)))
+            box(width: inner * 1cm, align(if rtl { right } else { left }, body)))
         })))
 
       // the banner, straddling the top rule
@@ -1313,10 +1454,9 @@
         let bw = if banner-w != auto { banner-w }
                  else { calc.min(width * 0.78, width - 2 * radius - 0.5) }
         let dt = _dovetail(bw, bh, notch: notch)
-        place(top + left, dx: (width - bw) / 2 * 1cm, dy: 0cm,
-          box(width: bw * 1cm, height: bh * 1cm, {
+        place(top + left, dx: ((width - bw) / 2 * 1cm) + title-offset-x, dy: (0cm) + title-offset-y, box(width: bw * 1cm, height: bh * 1cm, {
             place(top + left, md-region((dt,), flip: bh * 1cm, fill: bg))
-            _sb-draw(dt, bh * 1cm, paint: gi, w: 1.5pt, seed: seed + 7, ..H,
+            _sb-draw(dt, bh * 1cm, paint: gi, w: 1.5pt, seed: seed + 7, ..(H + ("vintage": vintage, "vintage-pen": vintage-pen)),
               bowing: bowing)
             place(center + horizon, text(fill: gi, weight: "bold",
               size: 1.15em, title))
@@ -1445,6 +1585,12 @@
   pad: 0.30, width: 100%, align-cells: auto, ltr-cols: (),
   seed: 95, rough: auto, hand: none, roughness: 1.0, bowing: 0.6,
 ) = context {
+  let print-mode = theme-state.get().mode == "print"
+  let fill = if print-mode { white } else { fill }
+  let head-fill = if print-mode { luma(224) } else { head-fill }
+  let ink = if print-mode { black } else { ink }
+  if print-mode { set text(fill: black) }
+
   let bg = if fill != auto { fill } else { rgb("#F7F4F0") }
   let hf = if head-fill != auto { head-fill } else { rgb("#DEDBE4") }
   let gi = if ink != auto { ink } else { rgb("#8A8894") }
@@ -1491,7 +1637,7 @@
 /// full width, perfectly centred. All three are wrong.
 #let sb-underline(
   body,
-  colour: auto, span: 0.56, shift: 0.06, drop: 0.42,
+  colour: auto, span: 1.0, shift: 0.0, drop: 0.42,
   weight: 1.5pt, wobble: 0.020, seed: 97,
 ) = context {
   let col = if colour != auto { colour } else { rgb("#B5423F") }

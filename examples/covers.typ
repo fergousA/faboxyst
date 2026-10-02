@@ -9,7 +9,7 @@
 //  direction, so the Arabic covers below mirror on their own.
 // ===========================================================================
 
-#import "@preview/faboxyst:0.2.0": *
+#import "../lib.typ": *
 
 #set page(paper: "a4", margin: 1.5cm)
 

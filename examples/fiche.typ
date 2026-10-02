@@ -6,7 +6,7 @@
 //    typst compile examples/fiche.typ --root .
 // ===========================================================================
 
-#import "@preview/faboxyst:0.2.0": *
+#import "../lib.typ": *
 #import "@preview/longops:0.1.0": division
 
 #set page(paper: "a4", margin: 0.6cm)

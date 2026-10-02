@@ -4,13 +4,16 @@
 //  and alternating pink/purple coils drawn with a 3D tube shading.
 //
 //    #coilbox[Une page de cahier à spirale.]
-//    #show: coil-pages   // the same, as a frame on every page
 // ===========================================================================
 
 #import "fabox.typ": is-rtl
+#import "engine.typ": rounded-rect-pts
+#import "antique.typ": vintage-pts
 #import "engine.typ": bezier-pts
 
 /// The clip-art's palette.
+#import "theme.typ": theme-state
+
 #let coil-colours = (
   frame:      rgb("#F27BB4"),   // the pink band and frame
   frame-dark: rgb("#C2185B"),   // outer rule / spine edge
@@ -74,7 +77,17 @@
   width: 100%,
   height: auto,
   direction: auto,
+  vintage: false,      // the two frame rules engraved with a nib
+  vintage-pen: none,
+  title-offset-x: 0pt,
+  title-offset-y: 0pt,
 ) = context {
+  let print-mode = theme-state.get().mode == "print"
+  let frame = if print-mode { black } else { frame }
+  let coil-a = if print-mode { luma(224) } else { coil-a }
+  let coil-b = if print-mode { luma(224) } else { coil-b }
+  if print-mode { set text(fill: black) }
+
   let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
   let body-dir = if rtl { std.rtl } else { ltr }
   let cc = coil-colours
@@ -121,10 +134,18 @@
       // outer rule + pink band + white paper
       place(top + left,
         rect(width: W - 2pt, height: H - 2pt, radius: r,
-          stroke: 1.4pt + dark-c))
+          stroke: if vintage { none } else { 1.4pt + dark-c }))
       place(top + left, dx: 4.4pt, dy: 4.4pt,
         rect(width: W - 2pt - 8.8pt, height: H - 2pt - 8.8pt, radius: r - 3pt,
-          stroke: 4.6pt + frame-c))
+          stroke: if vintage { none } else { 4.6pt + frame-c }))
+      if vintage {
+        place(top + left,
+          vintage-pts(rounded-rect-pts((0pt, 0pt), (W - 2pt, H - 2pt),
+            radius: r, n: 12), dark-c, 1.4pt, vintage-pen: vintage-pen))
+        place(top + left, dx: 4.4pt, dy: 4.4pt,
+          vintage-pts(rounded-rect-pts((0pt, 0pt), (W - 2pt - 8.8pt, H - 2pt - 8.8pt),
+            radius: r - 3pt, n: 12), frame-c, 4.6pt, vintage-pen: vintage-pen))
+      }
       place(top + left, dx: 9pt, dy: 9pt,
         rect(width: W - 18pt, height: H - 18pt, radius: r - 5pt,
           fill: cc.paper))
@@ -149,8 +170,7 @@
       }
       // title + body
       if title != none {
-        place(top + left, dx: content-x, dy: iy,
-          block(width: content-w, align(center, title-body)))
+        place(top + left, dx: (content-x) + title-offset-x, dy: (iy) + title-offset-y, block(width: content-w, align(center, title-body)))
       }
       place(top + left, dx: content-x, dy: iy + title-h, main)
     })
@@ -160,22 +180,3 @@
 /// French alias.
 #let cahier(..a) = coilbox(..a)
 
-/// The notebook frame on every page, after `ornate-pages`: the spine
-/// side gets a wider margin so the text clears the coils. Use `#show: coil-pages` to frame a whole document, or call the rule
-/// directly on a section (`#coil-pages[...]`) to chain several different
-/// frames in one document.
-#let coil-pages(doc, margin: 0.45cm, gap: 0.6cm, spine-gap: 1.5cm, rtl: false, ..args) = {
-  let mt = margin + gap
-  let ml = if rtl { margin + gap } else { margin + spine-gap }
-  let mr = if rtl { margin + spine-gap } else { margin + gap }
-  set page(
-    margin: (top: mt, bottom: mt, left: ml, right: mr),
-    background: context {
-      let fw = page.width - 2 * margin
-      let fh = page.height - 2 * margin
-      place(top + left, dx: margin, dy: margin,
-        coilbox([], width: fw, height: fh, ..args.named()))
-    },
-  )
-  doc
-}

@@ -6,7 +6,7 @@
 
 #align(center)[
   #v(1.6cm)
-  #text(size: 13pt, tracking: 3pt, fill: rgb("#1F3A68"))[FABOXYST 0.2.0]
+  #text(size: 13pt, tracking: 3pt, fill: rgb("#1F3A68"))[FABOXYST 0.3.0]
   #v(0.4cm)
   #text(size: 28pt, weight: "bold")[Showcase complet]
   #v(0.25cm)
@@ -33,7 +33,7 @@
   gutter: 10pt,
   fabox(title: [Boxes], colour: rgb("#B03A2E"), width: 100%)[fabox, flag, lace, ornate, scrapbook…],
   fabox(title: [Bulles], colour: rgb("#E67E22"), width: 100%)[callout · speech-bubble · 5W],
-  fabox(title: [Pages], colour: rgb("#1E5C4A"), width: 100%)[ornate-pages · book-cover · bound-page],
+  fabox(title: [Pages], colour: rgb("#1E5C4A"), width: 100%)[book-cover · bound-page · spiral-binding],
 )
 
 #v(1cm)

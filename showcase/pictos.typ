@@ -44,6 +44,7 @@
 #competence-crayon(title: [Chercher], body: [Comp. 1])
 #level-counter(2, max: 4)
 #bicolor-title([Part A], end: [Part B])
+#bicolor-bignum([Part A], end: [01])
 #banner-tri[SALE]  #banner-tri(alt: true)[ALT]
 #highway-sign(title: [A1])[Algiers]
 #sale-poster(old: [19,90 €], new: [9,90 €], reduction: [−50%])
@@ -69,6 +70,27 @@
   bicolor-title([Chapter], end: [01]),
   bicolor-title([فصل], end: [01], colour-a: rgb("#00695C"), colour-b: rgb("#EF6C00")),
   code: `#bicolor-title([Chapter], end: [01])`)
+#param-row([bicolor-bignum  bignumber title — each half wears the opposite colour · LTR / RTL],
+  bicolor-bignum([Chapter Five], end: [05]),
+  bicolor-bignum([الفصل الخامس], end: [05], colour-a: rgb("#00695C"),
+    colour-b: rgb("#C62828"), direction: rtl),
+  code: `#bicolor-bignum([Chapter Five], end: [05])`)
+#param-row([bicolor-bignum seam  the boundary shape — wavy / s],
+  bicolor-bignum([Chapter], seam: "wavy"),
+  bicolor-bignum([الفصل], seam: "s", direction: rtl),
+  code: `#bicolor-bignum([Chapter], seam: "wavy")`)
+#param-row([bicolor-bignum seam  zigzag / arc / step / big wavy],
+  block({
+    bicolor-bignum([Five], seam: "zigzag")
+    v(0.45em)
+    bicolor-bignum([Five], seam: "arc")
+  }),
+  block({
+    bicolor-bignum([Five], seam: "step")
+    v(0.45em)
+    bicolor-bignum([Five], seam: "wavy", seam-amp: 0.5cm, size: 1.3)
+  }),
+  code: `#bicolor-bignum([Five], seam: "zigzag")  # … "arc" | "step" | "s" | "slant"`)
 #param-row([banner-tri  width follows title · LTR start / RTL end],
   banner-tri(title: [01], colour: rgb("#C62828"), fill: auto, fill-b: auto,
     ink: white, arrows: 3, tip: 0.48cm, step: 0.18cm, size: 1.0,

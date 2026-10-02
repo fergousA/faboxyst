@@ -1,7 +1,6 @@
-// faboxyst — volutebox / volute-pages / parchemin : le cadre volute de
-// la papeterie (image 6) en boîte puis en cadre de page, et la lettre
-// ancienne roulée rose.
-#import "@preview/faboxyst:0.2.0": *
+// faboxyst — volutebox / parchemin : le cadre volute de la papeterie
+// (image 6) en boîte, et la lettre ancienne roulée rose.
+#import "../lib.typ": *
 
 #set page(width: 17cm, height: 24cm, margin: 1.2cm, fill: white)
 #show: faboxyst.with(theme: (lang: "fr", dir: ltr))
@@ -19,19 +18,6 @@
     #v(0.2cm)
     #text(style: "italic")[Le bureau de l'association.]
   ]
-]
-
-#pagebreak()
-
-#volute-pages[
-  #set text(size: 9.5pt)
-  = Le cadre en page entière
-
-  Le même cadre volute borde ici chaque page : doubles filets
-  chanfreinés, volutes d'encre aux quatre angles et tirets d'écho le
-  long des bords.
-
-  #lorem(80)
 ]
 
 #set page(margin: 1.4cm, background: none, fill: white)

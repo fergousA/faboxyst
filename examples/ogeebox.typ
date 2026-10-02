@@ -1,5 +1,5 @@
 // faboxyst — the teal-and-gold banner family, after the "28 lettres" plates.
-#import "@preview/faboxyst:0.2.0": *
+#import "../lib.typ": *
 
 #set page(width: 17cm, height: 13cm, fill: ogee-colours.cream, margin: 1.2cm)
 #set text(size: 11pt)

@@ -9,7 +9,7 @@
 //  when you ask for `breakable: true`.
 // ===========================================================================
 
-#import "@preview/faboxyst:0.2.0": *
+#import "../lib.typ": *
 
 #set page(width: 15cm, height: 24cm, margin: 9mm, fill: white)
 #set text(font: ("Libertinus Serif", "DejaVu Serif"), size: 10.5pt)

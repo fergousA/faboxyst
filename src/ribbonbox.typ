@@ -6,6 +6,10 @@
 // ===========================================================================
 
 #import "fabox.typ": is-rtl
+#import "engine.typ": rounded-rect-pts
+#import "antique.typ": vintage-pts
+
+#import "theme.typ": theme-state
 
 #let _curl(w, h, paint, flip: false) = {
   let body = box(width: w, height: h, {
@@ -24,9 +28,16 @@
 /// An L drawn with physical start/end points. `hx`/`vy` are +1 or −1
 /// (right/down vs left/up). Never uses `line(length:, angle:)` — those
 /// follow `text.dir` and flip in RTL.
-#let _corner-ell(size, stroke, hx, vy) = {
-  place(top + left, line(start: (0pt, 0pt), end: (hx * size, 0pt), stroke: stroke))
-  place(top + left, line(start: (0pt, 0pt), end: (0pt, vy * size), stroke: stroke))
+#let _corner-ell(size, stroke, hx, vy, vintage: false, vintage-pen: none) = {
+  if vintage {
+    place(top + left, vintage-pts(((0pt, 0pt), (hx * size, 0pt)),
+      stroke.paint, stroke.thickness, closed: false, vintage-pen: vintage-pen))
+    place(top + left, vintage-pts(((0pt, 0pt), (0pt, vy * size)),
+      stroke.paint, stroke.thickness, closed: false, vintage-pen: vintage-pen))
+  } else {
+    place(top + left, line(start: (0pt, 0pt), end: (hx * size, 0pt), stroke: stroke))
+    place(top + left, line(start: (0pt, 0pt), end: (0pt, vy * size), stroke: stroke))
+  }
 }
 
 #let ribbonbox(
@@ -49,7 +60,17 @@
   inset: 0.38cm,
   width: 100%,
   direction: auto,
+  vintage: false,      // the inner rule and chevrons engraved with a nib
+  vintage-pen: none,
 ) = context {
+  let print-mode = theme-state.get().mode == "print"
+  let colour = if print-mode { white } else { colour }
+  let fill = if print-mode { white } else { fill }
+  let tab-fill = if print-mode { white } else { tab-fill }
+  let title-colour = if print-mode { black } else { title-colour }
+  let chevron-colour = if print-mode { black } else { chevron-colour }
+  if print-mode { set text(fill: black) }
+
   let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
   let body-dir = if rtl { std.rtl } else { ltr }
 
@@ -92,7 +113,8 @@
 
       // --- blue band (outermost fill) ------------------------------------
       place(top + left, dy: y0,
-        box(width: W, height: H, fill: colour, radius: radius))
+        box(width: W, height: H, fill: colour, radius: radius,
+          stroke: if print-mode { 0.9pt + black } else { none }))
 
       // --- white gutter --------------------------------------------------
       place(top + left, dx: band, dy: y0 + band,
@@ -104,13 +126,23 @@
 
       // --- yellow plate + thin inner blue --------------------------------
       let inn = band + pair
+      let inn-rad = calc.max(0pt, radius - inn * 0.4)
       place(top + left, dx: inn, dy: y0 + inn,
         box(
           width: W - 2 * inn, height: H - 2 * inn,
           fill: fill,
-          radius: calc.max(0pt, radius - inn * 0.4),
-          stroke: weight + colour,
+          radius: inn-rad,
+          stroke: if vintage { none } else {
+            weight + (if print-mode { black } else { colour })
+          },
         ))
+      if vintage {
+        place(top + left, dx: inn, dy: y0 + inn,
+          vintage-pts(rounded-rect-pts((0pt, 0pt), (W - 2 * inn, H - 2 * inn),
+            radius: inn-rad, n: 8),
+            if print-mode { black } else { colour }, weight,
+            vintage-pen: vintage-pen))
+      }
 
       // --- corner chevrons: physical start/end, forced LTR ---------------
       // `line(length:, angle:)` mirrors with text.dir — left Ls flip
@@ -122,13 +154,13 @@
         let inset-c = band * 0.28
         // Each L opens toward the INTERIOR of the card.
         place(top + left, dx: inset-c, dy: y0 + inset-c,
-          _corner-ell(cs, st, 1, 1))
+          _corner-ell(cs, st, 1, 1, vintage: vintage, vintage-pen: vintage-pen))
         place(top + left, dx: W - inset-c, dy: y0 + inset-c,
-          _corner-ell(cs, st, -1, 1))
+          _corner-ell(cs, st, -1, 1, vintage: vintage, vintage-pen: vintage-pen))
         place(top + left, dx: inset-c, dy: y0 + H - inset-c,
-          _corner-ell(cs, st, 1, -1))
+          _corner-ell(cs, st, 1, -1, vintage: vintage, vintage-pen: vintage-pen))
         place(top + left, dx: W - inset-c, dy: y0 + H - inset-c,
-          _corner-ell(cs, st, -1, -1))
+          _corner-ell(cs, st, -1, -1, vintage: vintage, vintage-pen: vintage-pen))
       }
 
       // --- body ----------------------------------------------------------
@@ -140,7 +172,9 @@
         let fh = tab-h
         let tab = box(
           fill: tab-fill,
-          radius: 0.07cm,
+          // same rounding as the card itself, so the tab reads as part of it
+          radius: calc.min(radius, tab-h * 0.45),
+          stroke: weight + (if print-mode { black } else { colour }),
           inset: (x: 0.26cm, y: 0.08cm),
           {
             set text(dir: ltr)

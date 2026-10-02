@@ -21,6 +21,8 @@
 // ===========================================================================
 
 #import "fabox.typ": is-rtl
+#import "antique.typ": vintage-pts
+#import "engine.typ": rounded-rect-pts, circle-pts
 
 #let _ramp(f, reverse: false) = {
   let g = rgb("#2E9E5B")
@@ -53,6 +55,8 @@
   digits: true,
   shaded: false,
   direction: auto,
+  vintage: false,
+  vintage-pen: none,
 ) = context {
   let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
   let f = calc.min(1, calc.max(0, value / max))
@@ -115,6 +119,15 @@
             cap: "round"))))
       place(top + left, dx: cx - 0.11cm, dy: cy - 0.11cm,
         circle(radius: 0.11cm, fill: luma(25), stroke: 0.6pt + white))
+      if vintage {
+        let Ro = s + 0.09cm
+        let arc = range(25).map(i => {
+          let a = (180 - 180 * i / 24) * 1deg
+          (cx + Ro * calc.cos(a), cy - Ro * calc.sin(a))
+        })
+        place(top + left, vintage-pts(arc + ((cx - Ro, cy),), luma(45), 1pt,
+          closed: false, vintage-pen: vintage-pen))
+      }
       if digits != none {
         place(top + left, dx: 0pt, dy: cy + 0.18cm,
           box(width: W, align(center,
@@ -150,6 +163,15 @@
         place(top + left, dx: x0, dy: y,
           line(length: 0.14cm, stroke: (paint: luma(45), thickness: 0.6pt)))
       }
+      if vintage {
+        place(top + left, dx: tx, dy: y0,
+          vintage-pts(rounded-rect-pts((0pt, 0pt), (tw, tube-h),
+            radius: tw / 2), luma(45), 0.8pt, vintage-pen: vintage-pen))
+        place(top + left, dx: tx + tw / 2,
+          dy: y0 + tube-h - bulb * 0.7,
+          vintage-pts(circle-pts((0pt, 0pt), bulb, n: 24), luma(45), 0.8pt,
+            vintage-pen: vintage-pen))
+      }
       if digits != none {
         place(top + left, dx: 0pt, dy: H - 0.72cm,
           box(width: W, align(center,
@@ -182,6 +204,14 @@
           rect(width: iw, height: bh - 0.20cm, radius: 0.06cm,
             fill: paint-of(col, ang: if rtl { 180deg } else { 0deg })))
       }
+      if vintage {
+        place(top + left, dx: bx, dy: 0.06cm,
+          vintage-pts(rounded-rect-pts((0pt, 0pt), (s, bh),
+            radius: 0.12cm), luma(35), 1.1pt, vintage-pen: vintage-pen))
+        place(top + left, dx: capx, dy: (bh - 0.34cm) / 2 + 0.04cm,
+          vintage-pts(rounded-rect-pts((0pt, 0pt), (cap-w, 0.34cm),
+            radius: 0.06cm), luma(35), 0.8pt, vintage-pen: vintage-pen))
+      }
       if digits != none {
         place(top + left, dx: 0pt, dy: bh + 0.22cm,
           box(width: W, align(center,
@@ -204,6 +234,16 @@
           circle(radius: d / 2,
             fill: if on { col } else { none },
             stroke: (paint: if on { col } else { trk }, thickness: 1.1pt)))
+      }
+      if vintage {
+        for i in range(0, n) {
+          let k = if rtl { n - 1 - i } else { i }
+          let on = value > i
+          place(top + left, dx: 0.08cm + k * (d + gap) + d / 2,
+            dy: 0.06cm + d / 2,
+            vintage-pts(circle-pts((0pt, 0pt), d / 2, n: 20),
+              if on { col } else { trk }, 1.1pt, vintage-pen: vintage-pen))
+        }
       }
       if digits != none {
         place(top + left, dx: 0pt, dy: d + 0.16cm,
@@ -249,6 +289,12 @@
         place(top + left, dx: 0.1cm + k * (bw + gap), dy: s - h + 0.1cm,
           rect(width: bw, height: h, radius: 0.06cm,
             fill: if on { col } else { trk.transparentize(55%) }))
+      }
+      if vintage {
+        place(top + left, vintage-pts(
+          ((0.1cm, s + 0.1cm),
+           (0.1cm + n * bw + (n - 1) * gap, s + 0.1cm)),
+          luma(45), 0.8pt, closed: false, vintage-pen: vintage-pen))
       }
       if digits != none {
         place(top + left, dx: 0pt, dy: s + 0.24cm,
@@ -301,6 +347,11 @@
       }
       place(top + left, dx: cx - r, dy: cy - r,
         circle(radius: r, fill: none, stroke: 0.9pt + luma(40)))
+      if vintage {
+        place(top + left, dx: cx, dy: cy,
+          vintage-pts(circle-pts((0pt, 0pt), r, n: 32), luma(40), 0.9pt,
+            vintage-pen: vintage-pen))
+      }
       if digits != none {
         place(top + left, dx: 0pt, dy: cy + r + 0.14cm,
           box(width: W, align(center,
@@ -324,6 +375,14 @@
           rect(width: cw, height: ch, radius: 0.08cm,
             fill: if on { col } else { trk.transparentize(50%) },
             stroke: 0.7pt + luma(50)))
+      }
+      if vintage {
+        for i in range(0, n) {
+          let k = if rtl { n - 1 - i } else { i }
+          place(top + left, dx: 0.08cm + k * (cw + gap), dy: 0.08cm,
+            vintage-pts(rounded-rect-pts((0pt, 0pt), (cw, ch),
+              radius: 0.08cm), luma(50), 0.7pt, vintage-pen: vintage-pen))
+        }
       }
       if digits != none {
         place(top + left, dx: 0pt, dy: ch + 0.22cm,
@@ -396,6 +455,14 @@
             rect(width: pw, height: ph, radius: 0.10cm,
               fill: if shaded { paint-of(pad-c, ang: 90deg) } else { pad-c })))
       }
+      if vintage {
+        let arc = range(25).map(i => {
+          let a = (180 - 180 * i / 24) * 1deg
+          (cx + r * calc.cos(a), cy - r * calc.sin(a))
+        })
+        place(top + left, vintage-pts(arc, luma(45), 0.9pt, closed: false,
+          vintage-pen: vintage-pen))
+      }
       let na = 180deg - 180deg * f
       let nx = cx + (r * 0.62) * calc.cos(na)
       let ny = cy - (r * 0.62) * calc.sin(na)
@@ -422,8 +489,15 @@
         rect(width: 0.16cm, height: 0.16cm, fill: luma(40), radius: 0.03cm))
       place(top + left, dx: cx + r * 0.55, dy: cy - r * 0.85,
         circle(radius: 0.07cm, fill: luma(40)))
-      place(top + left, dx: cx - r, dy: cy - r,
-        circle(radius: r, fill: white, stroke: 1.6pt + luma(30)))
+      if vintage {
+        place(top + left, dx: cx - r, dy: cy - r, circle(radius: r, fill: white))
+        place(top + left, dx: cx, dy: cy,
+          vintage-pts(circle-pts((0pt, 0pt), r, n: 32), luma(30), 1.6pt,
+            vintage-pen: vintage-pen))
+      } else {
+        place(top + left, dx: cx - r, dy: cy - r,
+          circle(radius: r, fill: white, stroke: 1.6pt + luma(30)))
+      }
       if f > 0.01 {
         let n = 28
         let pts = ((cx, cy),)
@@ -494,6 +568,13 @@
         circle(radius: 1.36 * u, fill: rgb("#E53935"), stroke: 1.1pt + luma(20)))
       place(top + left, dx: cx - 0.60 * u, dy: cy - 0.60 * u,
         circle(radius: 0.60 * u, fill: rgb("#FDD835"), stroke: 1.1pt + luma(20)))
+      if vintage {
+        for rr in (2.25 * u, 1.36 * u, 0.60 * u) {
+          place(top + left, dx: cx, dy: cy,
+            vintage-pts(circle-pts((0pt, 0pt), rr, n: 32), luma(20), 1.1pt,
+              vintage-pen: vintage-pen))
+        }
+      }
       // White dart, black 2pt outline. Thin rectangular shaft (not a taper).
       let st = (paint: black, thickness: 2pt, join: "miter", cap: "butt")
       let along(r) = polar(45deg, r)

@@ -1,5 +1,5 @@
 // faboxyst — plankbox / pancarte: a rustic wooden sign.
-#import "@preview/faboxyst:0.2.0": *
+#import "../lib.typ": *
 
 #set page(paper: "a4", margin: (x: 1.4cm, y: 1.4cm), fill: white)
 #set text(size: 12pt)

@@ -1,6 +1,6 @@
 // faboxyst — gelbox: glossy aqua buttons after the I-Prof menu,
 // plus fabox's new creusé / bombé reliefs.
-#import "@preview/faboxyst:0.2.0": *
+#import "../lib.typ": *
 
 #set page(width: 9cm, height: 15cm, margin: 1cm, fill: rgb("#7B87F0"))
 #set text(size: 10pt)

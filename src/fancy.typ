@@ -23,8 +23,11 @@
 
 #import "engine.typ": (rough-points, rounded-rect-pts, sketch-points,
   arc-pts, circle-pts, ellipse-pts, stadium-pts, bezier-pts, smooth-pts)
+#import "antique.typ": vintage-outline
 #import "mapdraw.typ": (polylines as md-polylines, region as md-region,
   rough-outline as md-rough-outline, sketched as md-sketched)
+
+#import "theme.typ": theme-state, grayscale-paint
 
 #let _cm(l) = if type(l) == length { l / 1cm } else { l }
 
@@ -84,7 +87,7 @@
     } else if hand == "sketch" {
       let ring = if closed { pts + (pts.first(),) } else { pts }
       out.push(md-sketched((_resample(ring, closed: false),), flip: flip,
-        seed: seed, amplitude: amplitude, stroke: st))
+        seed: seed, amplitude: amplitude * roughness, stroke: st))
     } else {
       out.push(md-polylines(((if closed { pts + (pts.first(),) } else { pts }),),
         flip: flip, stroke: st))
@@ -111,6 +114,7 @@
 ///   #mark[important]                      a highlighter swipe
 ///   #mark(kind: "circle")[this bit]       a loose ring round the words
 ///   #mark(kind: "wave", colour: blue)[..] a wavy rule underneath
+///   #mark(kind: "fan", fill: yellow, inset: 0.1em)[..] a filled fan
 ///
 /// On a run that breaks over several lines the hand-drawn canvas cannot
 /// follow the text; `mark` then falls back to the native per-line
@@ -124,11 +128,13 @@
   body,
   kind: "highlight",
   colour: auto,
+  fill: none,       // optional interior fill for `fan` / `bracket`
   weight: auto,
   seed: 3,
   rough: true,
   hand: auto,
   expand: 0.16em,
+  inset: 0pt,       // extra room between the text and every mark shape
   opacity: auto,
   reserve: auto,
 ) = context {
@@ -136,7 +142,15 @@
   let hd = _hand(rough, hand)
   let col = if colour != auto { colour } else { rgb("#FFF421") }
   let m = measure(body)
-  let ex = measure(box(width: expand)).width
+  let inset-x = if inset == auto { 0pt } else if type(inset) == dictionary {
+    inset.at("x", default: 0pt)
+  } else { inset }
+  let inset-y = if inset == auto { 0pt } else if type(inset) == dictionary {
+    inset.at("y", default: 0pt)
+  } else { inset }
+  let ix = measure(box(width: inset-x)).width
+  let iy = measure(box(height: inset-y)).height / 1cm
+  let ex = measure(box(width: expand)).width + ix
   let w = _cm(m.width + 2 * ex)
   let h = _cm(m.height)
   // pad the canvas so a ring or a scribble is not clipped at its own edge
@@ -144,7 +158,7 @@
   // sits low in its em box, so the pad is a share of the FULL height.
   // The fan splays sideways past the words, so it needs more slack than the
   // other marks; everything else keeps the original padding.
-  let pad = if kind == "fan" { h * 1.15 } else { h * 0.55 }
+  let pad = (if kind == "fan" { h * 1.15 } else { h * 0.55 }) + iy
   let W = w + 2 * pad
   let H = h + 2 * pad
   let flip = H * 1cm
@@ -156,10 +170,14 @@
   // the x-height band occupies the top ~71 % of it. Guessing these fractions
   // (as a first version did) put every underline through the middle of the
   // words.
-  let ybase = pad                       // the baseline
-  let yx = pad + h * 0.714              // top of the x-height band
-  let ymid = pad + h * 0.357            // its optical centre
-  let ytop = pad + h                    // the ascender line
+  // Keep the text guides centred while extending the shape on both sides.
+  // `place` subtracts the canvas padding below, so adding `inset` only to
+  // `pad` would cancel out vertically. The baseline and ascender guides
+  // therefore get the extra room explicitly.
+  let ybase = pad - iy                  // baseline, expanded downward
+  let yx = pad + h * 0.714               // top of the x-height band
+  let ymid = pad + h * 0.357             // its optical centre
+  let ytop = pad + h + iy                // ascender line, expanded upward
   let lw = if weight != auto { weight } else {
     if kind == "highlight" { h * 0.86 * 28.35 * 1pt } else { 1.4pt }
   }
@@ -202,7 +220,10 @@
   let len(x) = if type(x) == length { x } else { 1.5cm }
   let ml = len(if type(mg) == dictionary { mg.at("left", default: 1.5cm) } else { mg })
   let mr = len(if type(mg) == dictionary { mg.at("right", default: 1.5cm) } else { mg })
-  if m.width + 2 * ex > page.width - ml - mr {
+  // A container narrower than the page (a box, a table cell) is invisible from
+  // here, so a long run is also sent to the native per-line elements: only
+  // short runs (a word or a phrase, under 6 cm) keep the one-box hand drawing.
+  if m.width + 2 * ex > calc.min(page.width - ml - mr, 6cm) {
     let sw = if weight != auto { _cm(weight) } else { 1.2pt }
     if kind == "highlight" or kind == "scribble" {
       return highlight(fill: col.transparentize(
@@ -267,7 +288,7 @@
     } else if kind == "circle" {
       // an ellipse drawn a bit off-centre, as a pen does
       let pts = ellipse-pts(((x0 + x1) / 2 + 0.02, ymid + h * 0.06),
-        (x1 - x0) / 2 + pad * 0.60, h * 0.78, n: 64)
+        (x1 - x0) / 2 + pad * 0.60, h * 0.78 + 2 * iy, n: 64)
       _pth(pts, flip, paint: col, w: lw, hand: hd, seed: seed,
         roughness: 1.4, amplitude: 0.6)
     } else if kind == "box" {
@@ -322,7 +343,11 @@
       let pts = pts + ((fx1 + splay, fy1),)
       let pts = pts + bow(fx1 + splay, fy1, fx0 - splay, fy1, 1.0)
       let pts = pts + ((fx0, fy0),)
-      _pth(pts, flip, paint: col, w: lw, hand: hd, seed: seed,
+      _pth(pts, flip,
+        fill: if fill == none { none } else if fill == auto {
+          col.transparentize(78%)
+        } else { fill },
+        paint: col, w: lw, hand: hd, seed: seed,
         roughness: 1.0, amplitude: 0.5)
     } else if kind == "scribble" {
       // a back-and-forth scrub, the way you cross something out in a margin
@@ -342,6 +367,12 @@
       let arm = calc.max(pad * 0.9, h * 0.34)
       let hi = ytop + h * 0.04
       let lo = ybase - h * 0.18
+      if fill != none {
+        let bg = if fill == auto { col.transparentize(78%) } else { fill }
+        _pth(((x0 - pad * 0.30, hi), (x1 + pad * 0.30, hi),
+          (x1 + pad * 0.30, lo), (x0 - pad * 0.30, lo)), flip,
+          fill: bg, paint: none, closed: true)
+      }
       for (bx, sgn) in ((x0 - pad * 0.30, 1.0), (x1 + pad * 0.30, -1.0)) {
         _pth(((bx + sgn * arm, hi), (bx, hi), (bx, lo),
               (bx + sgn * arm, lo)), flip, paint: col, w: lw,
@@ -417,7 +448,16 @@
   hand: auto,
   ghost: true,          // the faint doubled copy
 
-  direction: auto,) = context {
+  direction: auto,
+  vintage: false,      // the outline engraved with a nib
+  vintage-pen: none,
+) = context {
+  let print-mode = theme-state.get().mode == "print"
+  let colour = if print-mode { black } else { colour }
+  let fill = if print-mode { white } else { fill }
+  let ghost = if print-mode { false } else { ghost }
+  if print-mode { set text(fill: black) }
+
   let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
   set text(dir: if rtl { std.rtl } else { ltr })
   set align(start)
@@ -433,6 +473,7 @@
       body, colour: colour, fill: fill, weight: weight, inset: inset,
       radius: radius, overshoot: overshoot, width: avail.width * width,
       seed: seed, rough: rough, hand: hand, ghost: ghost,
+      vintage: vintage, vintage-pen: vintage-pen,
     ))
   }
   let inner = block(inset: inset, width: width, body)
@@ -457,16 +498,20 @@
       _pth(rounded-rect-pts((pad, pad), (pad + w, pad + h), radius: radius),
         flip, fill: fill)
     }
-    if ghost {
-      for (i, (a, b)) in sides.enumerate() {
-        _pth(((a.at(0) + 0.05, a.at(1) - 0.04), (b.at(0) + 0.05, b.at(1) - 0.04)),
-          flip, paint: col.transparentize(65%), w: weight, hand: hd,
-          seed: seed + 20 + i, amplitude: 0.7, closed: false)
+    if vintage {
+      place(top + left, vintage-outline(rounded-rect-pts((pad, pad), (pad + w, pad + h), radius: radius), flip, col, thickness: weight, closed: true, vintage-pen: vintage-pen))
+    } else {
+      if ghost {
+        for (i, (a, b)) in sides.enumerate() {
+          _pth(((a.at(0) + 0.05, a.at(1) - 0.04), (b.at(0) + 0.05, b.at(1) - 0.04)),
+            flip, paint: col.transparentize(65%), w: weight, hand: hd,
+            seed: seed + 20 + i, amplitude: 0.7, closed: false)
+        }
       }
-    }
-    for (i, (a, b)) in sides.enumerate() {
-      _pth((a, b), flip, paint: col.transparentize(15%), w: weight,
-        hand: hd, seed: seed + i, amplitude: 0.7, closed: false)
+      for (i, (a, b)) in sides.enumerate() {
+        _pth((a, b), flip, paint: col.transparentize(15%), w: weight,
+          hand: hd, seed: seed + i, amplitude: 0.7, closed: false)
+      }
     }
     place(top + left, dx: pad * 1cm, dy: pad * 1cm, inner)
   })
@@ -765,7 +810,15 @@
   clip-style: "gem",      // "gem" (measured) or "postit" (the package's)
   clip-tilt: -11deg,      // how far the Gem clip leans; "postit" has its own
 
-  direction: auto,) = context {
+  direction: auto,
+  vintage: false,      // the outline engraved with a nib
+  vintage-pen: none,
+) = context {
+  let print-mode = theme-state.get().mode == "print"
+  let fill = if print-mode { white } else { fill }
+  let pin-colour = if print-mode { black } else { pin-colour }
+  if print-mode { set text(fill: black) }
+
   let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
   set text(dir: if rtl { std.rtl } else { ltr })
   set align(start)
@@ -918,8 +971,13 @@
           clip-tilt: clip-tilt)
       }
     }
-    _pth(sheet, flip, fill: fill, paint: fill.darken(18%), w: 0.7pt,
-      hand: hd, seed: seed, roughness: 0.7)
+    if vintage {
+      _pth(sheet, flip, fill: fill)
+      place(top + left, vintage-outline(sheet, flip, fill.darken(18%), thickness: 0.7pt, closed: true, vintage-pen: vintage-pen))
+    } else {
+      _pth(sheet, flip, fill: fill, paint: fill.darken(18%), w: 0.7pt,
+        hand: hd, seed: seed, roughness: 0.7)
+    }
     // `head` is space ABOVE the paper, not a shift of what is printed on
     // it: the contents start at the sheet's own top edge either way.
     place(top + left, dx: pad * 1cm, dy: (pad + head) * 1cm, inner)
@@ -1029,11 +1087,23 @@
   size: auto,             // auto = 0.53 x the band, as measured
   tracking: 0.06em,       // the original is letterspaced; 0pt turns it off
 
-  direction: auto,) = context {
+  direction: auto,
+  vintage: false,      // the outline engraved with a nib
+  vintage-pen: none,
+) = context {
+  let print-mode = theme-state.get().mode == "print"
+  let colour = if print-mode { black } else { colour }
+  let fill = if print-mode { white } else { fill }
+  let paper = if print-mode { white } else { paper }
+  let shadow-colour = if print-mode { grayscale-paint(shadow-colour, fallback: luma(130)) } else { shadow-colour }
+  if print-mode { set text(fill: black) }
   let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
   set text(dir: if rtl { std.rtl } else { ltr })
   set align(start)
 
+  // the engraved ribbon uses a FINE nib by default: the generic pen is ~2x
+  // the stroke weight and turns the lettering box into a heavy outline
+  let vintage-pen = if vintage and vintage-pen == none { (weight * 0.7, weight * 0.2, 32deg) } else { vintage-pen }
   let hd = _hand(rough, hand)
   let h = _cm(height)
   // On the photograph the capitals stand 25 px in a 47 px band — 0.53 of it
@@ -1084,9 +1154,13 @@
         if fill != none {
           _pth(pts, flip, fill: fill)
         }
-        _pth(_resample(pts, step: 0.55, closed: false), flip, paint: colour,
-          w: weight, hand: hd, seed: seed + 3 + int(sgn),
-          roughness: wobble, bowing: 0.2, closed: false)
+        if vintage {
+          place(top + left, vintage-outline(pts, flip, colour, thickness: weight, closed: true, vintage-pen: vintage-pen))
+        } else {
+          _pth(_resample(pts, step: 0.55, closed: false), flip, paint: colour,
+            w: weight, hand: hd, seed: seed + 3 + int(sgn),
+            roughness: wobble, bowing: 0.2, closed: false)
+        }
       }
     }
 
@@ -1236,7 +1310,10 @@
   hand: auto,
   seed: 12,
 
-  direction: auto,) = context {
+  direction: auto,
+  vintage: false,      // the outline engraved with a nib
+  vintage-pen: none,
+) = context {
   let hd = _hand(rough, hand)
   let h = _cm(height)
   // Measured on the banner: the cap height is 0.45 of the bar and the words
@@ -1311,7 +1388,9 @@
   // of `fabox` solves the same problem the same way.)
   let FR(pts, sd, paint) = {
     place(top + left, md-region((pts,), flip: flip, fill: paint))
-    if rough {
+    if vintage {
+      place(top + left, vintage-outline(pts, flip, colour.darken(35%), thickness: 1.2pt, closed: true, vintage-pen: vintage-pen))
+    } else if rough {
       place(top + left, md-rough-outline((_resample(pts),), flip: flip,
         seed: sd, roughness: 0.7 * roughness, bowing: bowing,
         stroke: (paint: paint, thickness: 1.4pt, join: "round")))
@@ -1405,7 +1484,10 @@
   hand: auto,
   baseline: 0.28em,
 
-  direction: auto,) = context {
+  direction: auto,
+  vintage: false,      // the outline engraved with a nib
+  vintage-pen: none,
+) = context {
   let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
   set text(dir: if rtl { std.rtl } else { ltr })
   set align(start)
@@ -1450,8 +1532,12 @@
       _pth(((mx(tw), 0.0), (mx(tw), h)), flip, paint: fr, w: weight * 0.8,
         hand: hd, seed: seed + 2, amplitude: 0.3, closed: false)
     }
-    _pth(full, flip, paint: fr, w: weight, hand: hd, seed: seed,
-      roughness: 0.8)
+    if vintage {
+      place(top + left, vintage-outline(full, flip, fr, thickness: weight, closed: true, vintage-pen: vintage-pen))
+    } else {
+      _pth(full, flip, paint: fr, w: weight, hand: hd, seed: seed,
+        roughness: 0.8)
+    }
     place(top + (if r2l { right } else { left }), tbody)
     place(top + (if r2l { left } else { right }), bbody)
   }))
@@ -1491,15 +1577,28 @@
   title-fill: auto,
   title-colour: auto,
 
-  direction: auto,) = context {
+  direction: auto,
+  vintage: false,      // the outline engraved with a nib
+  vintage-pen: none,
+  body-offset-x: 0pt,
+  body-offset-y: 0pt,
+) = context {
+  let print-mode = theme-state.get().mode == "print"
+  let colour = if print-mode { white } else { colour }
+  let frame = if print-mode { black } else { frame }
+  let fill = if print-mode { white } else { fill }
+  let gradient-to = if print-mode { none } else { gradient-to }
+  let title-fill = if print-mode { white } else { title-fill }
+  let title-colour = if print-mode { black } else { title-colour }
+  if print-mode { set text(fill: black) }
   let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
   set text(dir: if rtl { std.rtl } else { ltr })
   set align(start)
 
   let hd = _hand(rough, hand)
   let r2l = is-rtl()
-  let fr = if frame == auto { colour } else { frame }
-  let bk = if fill == auto { colour.lighten(88%) } else { fill }
+  let fr = if print-mode { black } else if frame == auto { colour } else { frame }
+  let bk = if print-mode { white } else if fill == auto { colour.lighten(88%) } else { fill }
 
   let sp = if spread != auto { _cm(spread) } else { 0.0 }
   let inw = if inwards != auto { _cm(inwards) } else { sp }
@@ -1580,11 +1679,14 @@
           _pth(((m, H - m - th), (W - m, H - m - th), (W - m, H - m),
                 (m, H - m)), flip, fill: tb)
         }))
-        place(top + left, dx: (m + ins) * 1cm, dy: (m + ins) * 1cm,
-          box(width: inner-w, align(start, tbody)))
+        place(top + left, dx: ((m + ins) * 1cm) + body-offset-x, dy: ((m + ins) * 1cm) + body-offset-y, box(width: inner-w, align(start, tbody)))
       }
-      _pth(outline, flip, paint: fr, w: weight, hand: hd, seed: seed,
-        roughness: 0.8)
+      if vintage {
+        place(top + left, vintage-outline(outline, flip, fr, thickness: weight, closed: true, vintage-pen: vintage-pen))
+      } else {
+        _pth(outline, flip, paint: fr, w: weight, hand: hd, seed: seed,
+          roughness: 0.8)
+      }
       place(top + left, dx: (m + ins) * 1cm,
         dy: (m + ins + th) * 1cm, box(width: inner-w, align(start, main)))
     })
@@ -1622,7 +1724,15 @@
   rough: false,
   hand: auto,
 
-  direction: auto,) = context {
+  direction: auto,
+  vintage: false,      // the outline engraved with a nib
+  vintage-pen: none,
+) = context {
+  let print-mode = theme-state.get().mode == "print"
+  let colour = if print-mode { black } else { colour }
+  let fill = if print-mode { white } else { fill }
+  if print-mode { set text(fill: black) }
+
   let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
   set text(dir: if rtl { std.rtl } else { ltr })
   set align(start)
@@ -1680,8 +1790,13 @@
       if r2l { pts.rev() } else { pts }
     }
     block(width: W * 1cm, height: H * 1cm, {
-      _pth(ring, flip, fill: bk, paint: colour, w: weight, hand: hd,
-        seed: seed, roughness: 0.7)
+      if vintage {
+        _pth(ring, flip, fill: bk)
+        place(top + left, vintage-outline(ring, flip, colour, thickness: weight, closed: true, vintage-pen: vintage-pen))
+      } else {
+        _pth(ring, flip, fill: bk, paint: colour, w: weight, hand: hd,
+          seed: seed, roughness: 0.7)
+      }
       // Leading half-disc, slightly inside the outline so the ring stroke
       // stays put. Stub colour when there is a coupon, else the body fill.
       _pth(circle-pts((mx(0.0), H / 2), notch - 0.012, n: 28), flip,
@@ -1722,7 +1837,15 @@
   rough: false,
   hand: auto,
 
-  direction: auto,) = context {
+  direction: auto,
+  vintage: false,      // the outline engraved with a nib
+  vintage-pen: none,
+) = context {
+  let print-mode = theme-state.get().mode == "print"
+  let colour = if print-mode { black } else { colour }
+  let fill = if print-mode { white } else { fill }
+  if print-mode { set text(fill: black) }
+
   let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
   set text(dir: if rtl { std.rtl } else { ltr })
   set align(start)
@@ -1732,7 +1855,9 @@
   let bk = if fill == auto { colour.lighten(92%) } else { fill }
   // 70 %, not 55 %: mid-tone oranges and greens read far better reversed
   // out in white than set in black.
-  let tc = if luma(colour).components().first() > 70% { black } else { white }
+  let tc = if print-mode { black }
+    else if luma(colour).components().first() > 70% { black } else { white }
+  let tab-fill = if print-mode { white } else { colour }
 
   layout(avail => {
     let W = _cm(if type(width) == ratio { avail.width * width } else { width })
@@ -1792,12 +1917,16 @@
     block(width: W * 1cm, height: H * 1cm, {
       _pth(ring, flip, fill: bk)
       if tab != none {
-        _pth(tab-shape, flip, fill: colour)
+        _pth(tab-shape, flip, fill: tab-fill)
         place(top + (if r2l { right } else { left }),
           dx: if r2l { -0.30cm } else { 0.30cm }, tab)
       }
-      _pth(ring, flip, paint: colour, w: weight, hand: hd, seed: seed,
-        roughness: 0.7)
+      if vintage {
+        place(top + left, vintage-outline(ring, flip, colour, thickness: weight, closed: true, vintage-pen: vintage-pen))
+      } else {
+        _pth(ring, flip, paint: colour, w: weight, hand: hd, seed: seed,
+          roughness: 0.7)
+      }
       place(top + left, dx: (m + ins) * 1cm, dy: (th + ins) * 1cm, main)
     })
   })
@@ -1818,7 +1947,17 @@
   rough: false,
   hand: auto,
 
-  direction: auto,) = context {
+  direction: auto,
+  vintage: false,      // the outline engraved with a nib
+  vintage-pen: none,
+) = context {
+  let print-mode = theme-state.get().mode == "print"
+  let fill = if print-mode { white } else { fill }
+  let bar = if print-mode { white } else { bar }
+  let text-colour = if print-mode { black } else { text-colour }
+  let dots = if print-mode { (luma(224), luma(224), luma(224)) } else { dots }
+  if print-mode { set text(fill: black) }
+
   let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
   set text(dir: if rtl { std.rtl } else { ltr })
   set align(start)
@@ -1838,6 +1977,9 @@
       radius: radius)
     block(width: W * 1cm, height: H * 1cm, {
       _pth(ring, flip, fill: fill)
+      if vintage {
+        place(top + left, vintage-outline(ring, flip, text-colour.transparentize(25%), thickness: 1.2pt, closed: true, vintage-pen: vintage-pen))
+      }
       // the title bar, clipped to the rounded top
       place(top + left, box(width: W * 1cm, height: H * 1cm, clip: true,
         _pth(rounded-rect-pts((0.02, H - 0.02 - bh), (W - 0.02, H - 0.02),
@@ -1873,7 +2015,10 @@
   rough: false,
   hand: auto,
 
-  direction: auto,) = context {
+  direction: auto,
+  vintage: false,      // the outline engraved with a nib
+  vintage-pen: none,
+) = context {
   let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
   set text(dir: if rtl { std.rtl } else { ltr })
   set align(start)
@@ -1902,9 +2047,15 @@
     _pth(((ox + depth * sg, 0.0), (ox + w + depth * sg, 0.0),
           (ox + w, depth), (ox, depth)), flip, fill: colour.darken(35%))
     _pth(side, flip, fill: colour.darken(22%))
-    _pth(rounded-rect-pts((ox, depth), (ox + w, depth + h), radius: radius),
-      flip, fill: colour, paint: colour.darken(18%), w: weight, hand: hd,
-      seed: seed)
+    if vintage {
+      _pth(rounded-rect-pts((ox, depth), (ox + w, depth + h), radius: radius),
+        flip, fill: colour)
+      place(top + left, vintage-outline(rounded-rect-pts((ox, depth), (ox + w, depth + h), radius: radius), flip, colour.darken(18%), thickness: weight, closed: true, vintage-pen: vintage-pen))
+    } else {
+      _pth(rounded-rect-pts((ox, depth), (ox + w, depth + h), radius: radius),
+        flip, fill: colour, paint: colour.darken(18%), w: weight, hand: hd,
+        seed: seed)
+    }
     place(top + left, dx: ox * 1cm, dy: 0cm, inner)
   })
 }
@@ -1928,7 +2079,16 @@
   rough: false,
   hand: auto,
 
-  direction: auto,) = context {
+  direction: auto,
+  vintage: false,      // the outline engraved with a nib
+  vintage-pen: none,
+) = context {
+  let print-mode = theme-state.get().mode == "print"
+  let colour = if print-mode { black } else { colour }
+  let back = if print-mode { white } else { back }
+  let glow = if print-mode { 0 } else { glow }
+  if print-mode { set text(fill: black) }
+
   let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
   set text(dir: if rtl { std.rtl } else { ltr })
   set align(start)
@@ -1947,13 +2107,17 @@
     block(width: W * 1cm, height: H * 1cm, {
       _pth(rounded-rect-pts((0.0, 0.0), (W, H), radius: radius + 0.08),
         flip, fill: back)
-      for k in range(glow, 0, step: -1) {
-        let t = k / glow
-        _pth(ring, flip, paint: colour.transparentize(91%),
-          w: weight + t * spread, hand: hd, seed: seed, roughness: 0.5)
+      if vintage {
+        place(top + left, vintage-outline(ring, flip, colour, thickness: weight, closed: true, vintage-pen: vintage-pen))
+      } else {
+        for k in range(glow, 0, step: -1) {
+          let t = k / glow
+          _pth(ring, flip, paint: colour.transparentize(91%),
+            w: weight + t * spread, hand: hd, seed: seed, roughness: 0.5)
+        }
+        _pth(ring, flip, paint: white.transparentize(15%), w: weight * 0.7,
+          hand: hd, seed: seed, roughness: 0.5)
       }
-      _pth(ring, flip, paint: white.transparentize(15%), w: weight * 0.7,
-        hand: hd, seed: seed, roughness: 0.5)
       place(top + left, dx: ins * 1cm, dy: ins * 1cm, main)
     })
   })
@@ -1986,7 +2150,14 @@
   hand: auto,
   shadow: true,
   direction: auto,
+  vintage: false,      // the outline engraved with a nib
+  vintage-pen: none,
 ) = context {
+  let print-mode = theme-state.get().mode == "print"
+  let fill = if print-mode { white } else { fill }
+  let photo-fill = if print-mode { luma(224) } else { photo-fill }
+  if print-mode { set text(fill: black) }
+
   let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
   set text(dir: if rtl { std.rtl } else { ltr })
   set align(start)
@@ -2018,8 +2189,13 @@
             fill: luma(60).transparentize(93%))
         }
       }
-      _pth(card, flip, fill: fill, paint: luma(200), w: 0.6pt, hand: hd,
-        seed: seed)
+      if vintage {
+        _pth(card, flip, fill: fill)
+        place(top + left, vintage-outline(card, flip, luma(200), thickness: 0.6pt, closed: true, vintage-pen: vintage-pen))
+      } else {
+        _pth(card, flip, fill: fill, paint: luma(200), w: 0.6pt, hand: hd,
+          seed: seed)
+      }
       place(top + left, dx: (pad + border) * 1cm, dy: (pad + border) * 1cm,
         zone)
       if caption != none {
@@ -2069,6 +2245,8 @@
   shade: 0.5pt,           // the thin dark copy jotter draws behind
   offset: 0cm,            // shift the first loop along the edge
   scale: 1.0,             // grow or shrink the whole binding
+  vintage: false,      // the loops engraved with a nib
+  vintage-pen: none,
 ) = context {
   let r2l = is-rtl()
   let sd = if side != auto { side } else if r2l { "right" } else { "left" }
@@ -2107,9 +2285,23 @@
       let n = int(calc.ceil((run - offset) / (gap * s))) + 1
       for i in range(n) {
         let dy = offset + i * gap * s - 1.2cm * s
-        place(top + left, dy: dy, spiral(weight, colour))
-        place(top + left, dy: dy - 0.2mm * s, dx: -0.2mm * s,
-          spiral(shade, colour.darken(50%)))
+        if vintage {
+          let p0 = (0.5cm * s, 1cm * s)
+          let cc = (-0.5cm * s, 1.1cm * s)
+          let p1 = (1cm * s, 1.2cm * s)
+          let sp = range(11).map(i => {
+            let tt = i / 10
+            let mt = 1 - tt
+            (mt * mt * p0.at(0) + 2 * mt * tt * cc.at(0) + tt * tt * p1.at(0),
+             mt * mt * p0.at(1) + 2 * mt * tt * cc.at(1) + tt * tt * p1.at(1))
+          })
+          place(top + left, dy: dy, vintage-pts(sp, colour, weight,
+            closed: false, vintage-pen: vintage-pen))
+        } else {
+          place(top + left, dy: dy, spiral(weight, colour))
+          place(top + left, dy: dy - 0.2mm * s, dx: -0.2mm * s,
+            spiral(shade, colour.darken(50%)))
+        }
         if bead {
           place(top + left, dx: 1cm * s - 0.5mm * s,
             dy: dy + 1.2cm * s - 1.5mm * s,
@@ -2179,7 +2371,10 @@
   rest: 1.8cm,
   ..args,
 
-  direction: auto,) = context {
+  direction: auto,
+  vintage: false,      // the outline engraved with a nib
+  vintage-pen: none,
+) = context {
   let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
   set text(dir: if rtl { std.rtl } else { ltr })
   set align(start)
@@ -2191,6 +2386,7 @@
     else if sd == "top" { (top: margin, rest: rest) }
     else { (bottom: margin, rest: rest) }
   set page(margin: m,
-    background: spiral-binding(side: sd, colour: colour, ..args))
+    background: spiral-binding(side: sd, colour: colour,
+      vintage: vintage, vintage-pen: vintage-pen, ..args))
   body
 }

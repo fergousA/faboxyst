@@ -1,5 +1,5 @@
 // Shared helpers for the faboxyst parameter showcase.
-#import "@preview/faboxyst:0.2.0": *
+#import "../lib.typ": *
 
 #let ar-sample = [هذا صندوق تجريبي مع عنوان واضح.]
 #let en-sample = [This is a sample box with a short body.]

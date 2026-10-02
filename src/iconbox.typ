@@ -14,6 +14,9 @@
 // ===========================================================================
 
 #import "fabox.typ": is-rtl
+#import "engine.typ": rounded-rect-pts
+#import "antique.typ": vintage-pts
+#import "theme.typ": theme-state
 
 // ---------------------------------------------------------------------------
 //  tiny drawn icons (no emoji font required)
@@ -149,13 +152,27 @@
   icon-dy: -0.42cm,
   mark-size: 1.15em,
   direction: auto,
+  vintage: false,      // frame drawn with an engraved elliptical nib
+  vintage-pen: none,
+  body-offset-x: 0pt,
+  body-offset-y: 0pt,
+  icon-offset-x: 0pt,
+  icon-offset-y: 0pt,
+  title-offset-x: 0pt,
+  title-offset-y: 0pt,
 ) = context {
+  let print-mode = theme-state.get().mode == "print"
+  let colour = if print-mode { white } else { colour }
+  let fill = if print-mode { white } else { fill }
   let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
   let body-dir = if rtl { std.rtl } else { ltr }
-  let fr = if frame == auto { colour } else { frame }
+  let fr = if print-mode { black }
+    else if frame == auto { colour } else { frame }
   let st = _make-stroke(stroke, fr, weight, dash)
-  let tc = if title-colour != auto { title-colour }
-           else if banner { white } else { colour }
+  let tc = if print-mode { black }
+    else if title-colour != auto { title-colour }
+    else if banner { white } else { colour }
+  if print-mode { set text(fill: black) }
 
   let title-body = if title == none { none } else {
     text(fill: tc, weight: "bold", size: title-size, title)
@@ -208,11 +225,16 @@
         block(
           width: inner-w, height: H,
           fill: fill,
-          stroke: if frame-char != none { none } else { st },
+          stroke: if frame-char != none or vintage { none } else { st },
           radius: radius,
           clip: false,
           {
             set text(dir: body-dir)
+            if vintage {
+              place(top + left, vintage-pts(
+                rounded-rect-pts((0pt, 0pt), (inner-w, H), radius: radius, n: 10),
+                fr, weight, closed: true, vintage-pen: vintage-pen))
+            }
             if banner and title != none {
               place(top + left, box(width: 100%, height: bar-h, clip: true, {
                 place(top + left, box(
@@ -221,20 +243,20 @@
                   radius: (top-left: radius, top-right: radius),
                 ))
               }))
-              place(top + center, dy: (bar-h - tm.height) / 2, title-body)
+              place(top + center, dy: ((bar-h - tm.height) / 2) + title-offset-y, dx: title-offset-x, title-body)
             } else if title != none {
-              place(top + center, dy: inset * 0.7, title-body)
+              place(top + center, dy: (inset * 0.7) + title-offset-y, dx: title-offset-x, title-body)
             }
             place(top + left, dy: bar-h + head + inset, dx: inset, main)
             if mark != none {
-              place(bottom + end, dx: -0.16cm, dy: -0.12cm, mark-body)
+              place(bottom + end, dx: (-0.16cm) + body-offset-x, dy: (-0.12cm) + body-offset-y, mark-body)
             }
             if frame-char != none {
               _char-frame(inner-w, H, frame-char, fr, frame-char-size)
             }
           })
         if icon != none {
-          place(top + end, dx: icon-dx, dy: icon-dy, icon-body)
+          place(top + end, dx: (icon-dx) + icon-offset-x, dy: (icon-dy) + icon-offset-y, icon-body)
         }
       })
     })

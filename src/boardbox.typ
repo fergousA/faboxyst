@@ -6,6 +6,9 @@
 // ===========================================================================
 
 #import "fabox.typ": is-rtl
+#import "antique.typ": vintage-pts
+
+#import "theme.typ": theme-state
 
 #let bb-colours = (
   kerria:      rgb("#FFA500"),
@@ -109,15 +112,31 @@
   inset: 0.32cm,
   width: 100%,
   direction: auto,
+  vintage: false,      // the slate's inner edge engraved with a nib
+  vintage-pen: none,
+  title-offset-x: 0pt,
+  title-offset-y: 0pt,
 ) = context {
+  let print-mode = theme-state.get().mode == "print"
+  let colour = if print-mode { black } else { colour }
+  let fill = if print-mode { white } else { fill }
+  let title-colour = if print-mode { black } else { title-colour }
+  let text-fill = if print-mode { black } else { text-fill }
+  let grid-stroke = if print-mode { luma(224) } else { grid-stroke }
+  let tray = if print-mode { false } else { tray }
+  if print-mode { set text(fill: black) }
+
   let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
   let body-dir = if rtl { std.rtl } else { ltr }
   let chalk = kind != "marker"
   let slate = if fill != auto { fill }
               else if chalk { bb-colours.bottlegreen } else { rgb("#F4F5F2") }
-  let lit = if chalk { bb-colours.kerria } else { rgb("#D8DCE0") }
-  let dim = if chalk { bb-colours.brown } else { rgb("#8E979E") }
-  let plate = if chalk { bb-colours.goldbrown } else { rgb("#B9C0C6") }
+  let lit = if print-mode { luma(224) }
+    else if chalk { bb-colours.kerria } else { rgb("#D8DCE0") }
+  let dim = if print-mode { black }
+    else if chalk { bb-colours.brown } else { rgb("#8E979E") }
+  let plate = if print-mode { white }
+    else if chalk { bb-colours.goldbrown } else { rgb("#B9C0C6") }
   let ink = if text-fill != auto { text-fill }
             else if chalk { bb-colours.snow } else { rgb("#1A1A1A") }
   let tc = if title-colour != auto { title-colour }
@@ -159,6 +178,11 @@
       let sh = H - 2 * frame
       place(top + left, dx: sx, dy: sy,
         box(width: sw, height: sh, fill: slate))
+      if vintage {
+        place(top + left, dx: sx, dy: sy,
+          vintage-pts(((0pt, 0pt), (sw, 0pt), (sw, sh), (0pt, sh)),
+            dim, 1.2pt, vintage-pen: vintage-pen))
+      }
 
       if grid {
         let g = if luma(slate).components().first() > 50% {
@@ -224,7 +248,7 @@
 
       if title != none {
         let tx = if rtl { sx + sw - inset - tm.width } else { sx + inset }
-        place(top + left, dx: tx, dy: sy + inset * 0.6, {
+        place(top + left, dx: (tx) + title-offset-x, dy: (sy + inset * 0.6) + title-offset-y, {
           set text(dir: body-dir)
           title-body
         })

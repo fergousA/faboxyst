@@ -9,7 +9,7 @@
 //  red on its own (a battery ramps the other way: empty is the alarm).
 // ===========================================================================
 
-#import "@preview/faboxyst:0.2.0": *
+#import "../lib.typ": *
 
 #set page(width: 16cm, height: 22cm, margin: 1.2cm)
 

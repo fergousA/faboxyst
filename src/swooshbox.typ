@@ -11,6 +11,10 @@
 // ===========================================================================
 
 #import "fabox.typ": is-rtl
+#import "engine.typ": rounded-rect-pts
+#import "antique.typ": vintage-pts
+
+#import "theme.typ": theme-state
 
 #let _cm(l) = if type(l) == length { l / 1cm } else { l }
 
@@ -28,10 +32,11 @@
   if flip { scale(x: -100%, reflow: true, body) } else { body }
 }
 
-#let _banner(w, h, fill) = {
+#let _banner(w, h, fill, stroke: none) = {
   let n = h * 0.52
   polygon(
     fill: fill,
+    stroke: stroke,
     (0pt, h * 0.5),
     (n, 0pt),
     (w - n, 0pt),
@@ -53,7 +58,7 @@
 }
 
 /// A filled quadrilateral with circular-ish rounded corners.
-#let _round-quad(a, b, c, d, r, fill) = {
+#let _round-quad(a, b, c, d, r, fill, stroke: none) = {
   let a-out = _inset(a, b, r)
   let b-in  = _inset(b, a, r)
   let b-out = _inset(b, c, r)
@@ -64,7 +69,7 @@
   let a-in  = _inset(a, d, r)
   curve(
     fill: fill,
-    stroke: none,
+    stroke: stroke,
     curve.move(a-out),
     curve.line(b-in),
     curve.quad(b, b-out),
@@ -103,7 +108,19 @@
   inset: 0.38cm,
   width: 100%,
   direction: auto,
+  vintage: false,      // the card outline engraved with a nib
+  vintage-pen: none,
+  title-offset-x: 0pt,
+  title-offset-y: 0pt,
 ) = context {
+  let print-mode = theme-state.get().mode == "print"
+  let colour = if print-mode { white } else { colour }
+  let fill = if print-mode { white } else { fill }
+  let tab-fill = if print-mode { white } else { tab-fill }
+  let title-colour = if print-mode { black } else { title-colour }
+  let stroke = if print-mode { 0.9pt + black } else { stroke }
+  if print-mode { set text(fill: black) }
+
   let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
   let body-dir = if rtl { std.rtl } else { ltr }
   // Offsets are in y-up coordinates: +x right, +y up.
@@ -116,12 +133,13 @@
   let down = calc.max(0pt, -bry)
   let out = calc.max(0pt, trx, brx)
 
-  let tab-paint = if tab-fill != none { tab-fill } else {
-    gradient.linear(
-      rgb("#0C9A8C"), rgb("#1788A6"),
-      angle: if rtl { 180deg } else { 0deg },
-    )
-  }
+  let tab-paint = if print-mode { white }
+    else if tab-fill != none { tab-fill } else {
+      gradient.linear(
+        rgb("#0C9A8C"), rgb("#1788A6"),
+        angle: if rtl { 180deg } else { 0deg },
+      )
+    }
 
   let title-body = if title == none { none } else {
     text(fill: title-colour, weight: "bold", size: 0.84em, title)
@@ -195,6 +213,7 @@
         _round-quad(
           blue.at(0), blue.at(1), blue.at(2), blue.at(3),
           radius, colour,
+          stroke: if print-mode { 0.9pt + black } else { none },
         ))
 
       // 2. the white plate — same base size, no offsets
@@ -203,15 +222,24 @@
           width: card-w, height: H,
           fill: fill,
           radius: radius,
-          stroke: stroke,
+          stroke: if vintage { none } else { stroke },
         ))
+      if vintage {
+        let sp = if type(stroke) == dictionary { stroke.paint } else { black }
+        let sw = if type(stroke) == dictionary { stroke.thickness } else { stroke }
+        place(top + left, dx: cx, dy: y0,
+          vintage-pts(rounded-rect-pts((0pt, 0pt), (card-w, H), radius: radius, n: 8),
+            sp, sw, vintage-pen: vintage-pen))
+      }
 
       place(top + left, dx: cx + inset, dy: y0 + inset, main)
 
       if title != none {
         let tab = box(width: tab-w, height: tab-h, {
-          place(top + left, _banner(tab-w, tab-h, tab-paint))
-          place(center + horizon, {
+          place(top + left,
+            _banner(tab-w, tab-h, tab-paint,
+              stroke: if print-mode { 0.8pt + black } else { none }))
+          place(center + horizon, dx: title-offset-x, dy: title-offset-y, {
             set text(dir: ltr)
             if flourish {
               box(baseline: 40%, _curl(curl-w, tab-h * 0.72, title-colour))

@@ -4,7 +4,7 @@
 //    typst compile examples/ornate.typ --root .
 // ===========================================================================
 
-#import "@preview/faboxyst:0.2.0": *
+#import "../lib.typ": *
 
 #set page(width: 17cm, height: auto, margin: 9mm, fill: white)
 #set text(font: ("Libertinus Serif", "DejaVu Serif"), size: 10.5pt)

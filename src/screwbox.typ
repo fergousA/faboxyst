@@ -6,6 +6,10 @@
 // ===========================================================================
 
 #import "fabox.typ": is-rtl
+#import "engine.typ": rounded-rect-pts
+#import "antique.typ": vintage-pts
+
+#import "theme.typ": theme-state
 
 #let _screw(d, metal, slot, angle) = {
   let r = d / 2
@@ -45,7 +49,16 @@
   inset: 0.42cm,
   width: 100%,
   direction: auto,
+  vintage: false,      // the plate rules engraved with a nib
+  vintage-pen: none,
 ) = context {
+  let print-mode = theme-state.get().mode == "print"
+  let colour = if print-mode { black } else { colour }
+  let fill = if print-mode { white } else { fill }
+  let screw = if print-mode { luma(224) } else { screw }
+  let slot = if print-mode { black } else { slot }
+  if print-mode { set text(fill: black) }
+
   let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
   let body-dir = if rtl { std.rtl } else { ltr }
   let sd = screw-size
@@ -66,11 +79,20 @@
       // plate
       place(top + left,
         box(width: W, height: H, fill: fill, radius: radius,
-          stroke: weight + colour))
+          stroke: if vintage { none } else { weight + colour }))
       // inner hairline, like a bevel
       place(top + left, dx: 1.6pt, dy: 1.6pt,
         box(width: W - 3.2pt, height: H - 3.2pt, radius: calc.max(0pt, radius - 1pt),
-          stroke: 0.5pt + colour.lighten(35%)))
+          stroke: if vintage { none } else { 0.5pt + colour.lighten(35%) }))
+      if vintage {
+        place(top + left,
+          vintage-pts(rounded-rect-pts((0pt, 0pt), (W, H), radius: radius, n: 8),
+            colour, weight, vintage-pen: vintage-pen))
+        place(top + left, dx: 1.6pt, dy: 1.6pt,
+          vintage-pts(rounded-rect-pts((0pt, 0pt), (W - 3.2pt, H - 3.2pt),
+            radius: calc.max(0pt, radius - 1pt), n: 8),
+            colour.lighten(35%), 0.5pt, vintage-pen: vintage-pen))
+      }
 
       let m = 0.10cm
       if _screw-on(tl) {

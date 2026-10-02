@@ -21,6 +21,8 @@
 #import "mapdraw.typ": (polylines as md-polylines, region as md-region,
   rough-outline as md-rough-outline)
 #import "watermark.typ": paint-watermark, resolve-wm-colour
+#import "antique.typ": (nib-stroke, vintage-outline)
+#import "theme.typ": theme-state, grayscale-paint
 
 #let _cm(l) = if type(l) == length { l / 1cm } else { l }
 
@@ -258,7 +260,18 @@
 }
 
 #let _stroke-path(pts, flip, paint, w, rough: false, seed: 1,
-                  roughness: 1.0, bowing: 0.6, closed: true) = {
+                  roughness: 1.0, bowing: 0.6, closed: true, vintage: false,
+                  vintage-pen: none) = {
+  if vintage {
+    // The engraved mode: a straight path run through the elliptical nib.
+    // The pen's major axis is derived from the stroke's own thickness, so
+    // the line keeps its native colour and roughly its native weight.
+    // Rendered as a native curve (not a CeTZ canvas): a canvas holding a
+    // single path gets re-flowed to its own top-left corner, which would
+    // displace small strokes like the example-header disc ring.
+    return vintage-outline(pts, flip, paint, thickness: w, closed: closed,
+      vintage-pen: vintage-pen)
+  }
   if not rough {
     md-polylines(((if closed { pts + (pts.first(),) } else { pts }),),
       flip: flip,
@@ -292,11 +305,13 @@
 ///                      the `shadowed` package's inner shadows);
 ///                      "emboss"/"bombe" raise it with a light top-left bevel
 ///                      plus a faint drop shadow.
-///   shadow-colour      what it is painted in
+///   shadow-colour      what it is painted in; lifted shadows also accept
+///                      `(center: color, edge: color)` for a horizontal fade
 ///   shadow-spread      how far it reaches, in cm
 ///   shadow-opacity     how dark it is at its darkest, 0–100 %
 ///   shadow-offset      `(dx, dy)` in cm; auto = down and to the trailing
 ///                      side, so the light reads as coming from above
+///   shadow-flip-y      mirror the native lifted shadow's bend vertically
 ///   tab                none | "top" | "bottom" | "ribbon" | "plaque" |
 ///                      "swoosh" — an attached title. "plaque" straddles the
 ///                      top rule, in the manner of `mdframed`'s TikZ theorem
@@ -353,6 +368,7 @@
   shadow-opacity: auto,   // darkness at the core, 0–100 %
   shadow-offset: auto,    // (dx, dy) in cm
   shadow-blur: 14,        // number of stacked copies; more = smoother
+  shadow-flip-y: false,   // mirror only the lifted shadow curve vertically
   tab: none,
   tab-width: 45%,
   tab-offset: 0.5,        // leading gap before a "plaque" heading
@@ -417,31 +433,64 @@
   tape-period: 0.10,
   tape-colours: (rgb("#FFDD00"), black),
   vignette: none,         // e.g. 0.08 — a raised bevel inside the frame
-  rough: false,
+  rough: auto,           // auto = follow the theme (hand-drawn when it sets `roughness` > 0)
   roughness: 1.0,
   bowing: 0.6,
   seed: 11,
-  width: 100%,
+  width: auto,
+  height: auto,
+  leading: 0.5em,
   icon: none,             // a small badge at the leading edge
   inline: false,          // sit in the text flow, not on its own line
   baseline: 30%,          // how far the inline box drops below the baseline
+  vintage: false,         // engraved elliptical-nib trace (native colours)
+  vintage-pen: none,      // (th, th2, angle) override for the nib
+  body-offset-x: 0pt,
+  body-offset-y: 0pt,
+  icon-offset-x: 0pt,
+  icon-offset-y: 0pt,
+  title-offset-x: 0pt,
+  title-offset-y: 0pt,
 ) = context {
+  let _th = theme-state.get()
+  let rough = if rough != auto { rough } else {
+    let tr = _th.at("rough", default: auto)
+    if tr != auto { tr } else {
+      _th.at("roughness-set", default: false) and _th.at("roughness", default: 1.0) > 0
+    }
+  }
+  let roughness = roughness * _th.at("roughness", default: 1.0)
   let rtl = is-rtl()
-  let fr = if frame == auto { colour } else { frame }
-  let bk = if back == auto { colour.lighten(92%) } else { back }
-  let tb = if title-fill == auto { colour } else { title-fill }
-  let tc = if title-colour == auto {
+  if leading != auto { set par(leading: leading) }
+  let print-mode = theme-state.get().mode == "print"
+  let colour = if print-mode { white } else { colour }
+  let fr = if print-mode { black }
+    else if frame == auto { colour } else { frame }
+  let bk = if print-mode { white }
+    else if back == auto { colour.lighten(92%) } else { back }
+  let tb = if print-mode { white }
+    else if title-fill == auto { colour } else { title-fill }
+  let tc = if print-mode { black } else if title-colour == auto {
     if luma(tb).components().first() > 55% { black } else { white }
   } else { title-colour }
   let tw = if title-weight == auto { weight } else { title-weight }
-  let sc = if shadow-colour == auto { luma(120) } else { shadow-colour }
-  // `shadow: true` is the friendly spelling of the offset shadow, and
-  // `false` of none. Normalising here means every test below — the room
-  // reserved, the variant chosen — sees a string or `none`, and none of
-  // them had to learn about booleans.
+  let sc = if print-mode { grayscale-paint(shadow-colour) }
+    else if shadow-colour == auto { luma(120) } else { shadow-colour }
+  // Keep the requested shadow geometry, opacity and source intensity in
+  // print; `sc` above changes only its chroma to grayscale.
   let shadow = if shadow == true { "plain" }
-               else if shadow == false { none }
-               else { shadow }
+    else if shadow == false { none }
+    else { shadow }
+  let halo = if print-mode and halo != none {
+    let rings = if type(halo.first()) == array { halo } else { (halo,) }
+    rings.map(pair => (pair.at(0), grayscale-paint(pair.at(1))))
+  } else { halo }
+  let gradient-to = if print-mode { none } else { gradient-to }
+  let vignette = if print-mode { none } else { vignette }
+  let border = if print-mode { none } else { border }
+  let watermark-colour = if print-mode { black } else { watermark-colour }
+  let spine-colour = if print-mode { black } else { spine-colour }
+  if print-mode { set text(fill: black) }
 
   // `layout` is a block-level element, so an inline box has to be wrapped in
   // a `box` to stay in the paragraph — without it the frame breaks the line
@@ -688,6 +737,10 @@
                       + 2 * m + sh-room)
     }
     H += sh-room
+    if height != auto {
+      let Ht = if type(height) == ratio { avail.height * height } else { height }
+      H = Ht / 1cm
+    }
     let flip = H * 1cm
 
     // where the frame itself sits, once the tab and the shadow have taken
@@ -734,7 +787,7 @@
 
     let SP(pts, sd, w, paint, closed: true) = _stroke-path(pts, flip, paint, w,
       rough: rough, seed: sd, roughness: roughness, bowing: bowing,
-      closed: closed)
+      closed: closed, vintage: vintage, vintage-pen: vintage-pen)
 
     /// A filled area that also follows the hand-drawn mode.
     ///
@@ -835,13 +888,105 @@
             let bottom = range(n + 1).map(i => {
               let t = i / n
               let u = 1 - t
-              (u * u * x0 + 2 * u * t * xm + t * t * x1,
-               u * u * y0 + 2 * u * t * (y0 + bend) + t * t * y0)
+              let y = if shadow-flip-y {
+                // A mirrored lifted shadow is a downward-pointing bowl.
+                // Keep its tips on the edge and use a cusp at the midpoint.
+                let profile = calc.pow(1 - calc.abs(2 * t - 1), 0.80)
+                y1 - bend * 1.00 * profile
+              } else {
+                u * u * y0 + 2 * u * t * (y0 + bend) + t * t * y0
+              }
+              (u * u * x0 + 2 * u * t * xm + t * t * x1, y)
             })
+            let layer-opacity = opacities.at(k)
+            // A chromatic gradient is otherwise washed out by the native
+            // translucent stack. Boost only its paint opacity (not geometry
+            // or the relative falloff) so the requested paper hue reads as
+            // tinted rather than grey; scalar/native shadows stay unchanged.
+            let paint-opacity = if type(sc) == dictionary {
+              calc.min(1.0, layer-opacity * 2.0)
+            } else { layer-opacity }
+            let layer-paint = if type(sc) == dictionary {
+              let mode = sc.at("mode", default: "linear")
+              let edge-alpha = if mode == "layered" or mode == "two-axis" {
+                calc.min(1.0, layer-opacity * 3.0)
+              } else if mode == "radial" {
+                calc.min(1.0, layer-opacity * 2.5)
+              } else { paint-opacity }
+              let center-alpha = if mode == "layered" {
+                calc.min(1.0, layer-opacity * 1.0)
+              } else if mode == "two-axis" {
+                calc.min(1.0, layer-opacity * 2.5)
+              } else if mode == "radial" {
+                calc.min(1.0, layer-opacity * 0.25)
+              } else { paint-opacity }
+              let middle-alpha = if mode == "radial" {
+                calc.min(1.0, layer-opacity * 0.6)
+              } else { center-alpha }
+              let top-alpha = if mode == "layered" {
+                calc.min(1.0, layer-opacity * 0.30)
+              } else if mode == "two-axis" {
+                calc.min(1.0, layer-opacity * 1.60)
+              } else { center-alpha }
+              let edge = sc.at("edge").transparentize(100% - edge-alpha * 100%)
+              if mode == "layered" {
+                // Horizontal edge-to-center-to-edge gradient plus a vertical
+                // light-to-dark change across native copies, approximating a
+                // radial wash without changing the lifted shadow geometry.
+                let top-center = sc.at("center-top").transparentize(
+                  100% - top-alpha * 100%)
+                let lower-center = sc.at("center-bottom").transparentize(
+                  100% - center-alpha * 100%)
+                let vertical = (steps.len() - 1 - k) / (steps.len() - 1) * 100%
+                let center = top-center.mix((lower-center, vertical))
+                gradient.linear(edge, center, edge, angle: 0deg)
+              } else if mode == "two-axis" {
+                // Paint the bowl itself with a vertical light-to-dark fade;
+                // the page-space flip reverses these stops. Horizontal edge
+                // shading is composited as a second paint pass.
+                let top-center = sc.at("center-top").transparentize(
+                  100% - top-alpha * 100%)
+                let lower-center = sc.at("center-bottom").transparentize(
+                  100% - center-alpha * 100%)
+                gradient.linear(lower-center, top-center, angle: 90deg)
+              } else {
+                let center = sc.at("center").transparentize(
+                  100% - center-alpha * 100%)
+                if mode == "radial" {
+                  let middle = sc.at("middle").transparentize(
+                    100% - middle-alpha * 100%)
+                  let focus = sc.at("focus", default: (50%, 0%))
+                  gradient.radial(
+                    center, middle, edge,
+                    center: focus,
+                    radius: sc.at("radius", default: 75%),
+                    focal-center: focus,
+                    focal-radius: 0%,
+                  )
+                } else {
+                  gradient.linear(edge, center, edge, angle: 0deg)
+                }
+              }
+            } else {
+              sc.transparentize(100% - layer-opacity * 100%)
+            }
+            let shadow-contour = ((x0, y1), (x1, y1)) + bottom.rev()
+            let shadow-shapes = (shadow-contour,)
             place(top + left, md-region(
-              ((((x0, y1), (x1, y1)) + bottom.rev()),),
-              flip: flip,
-              fill: sc.transparentize(100% - opacities.at(k) * 100%)))
+              shadow-shapes, flip: flip, fill: layer-paint))
+            let two-axis-paint = type(sc) == dictionary and sc.at("mode", default: "linear") == "two-axis"
+            if two-axis-paint {
+              // Second paint pass only: the transparent center preserves the
+              // vertical wash, while both horizontal ends receive deeper ink.
+              let overlay-alpha = calc.min(1.0, layer-opacity * 4.5)
+              let overlay-edge = sc.at("edge").transparentize(
+                100% - overlay-alpha * 100%)
+              let overlay-center = sc.at("edge").transparentize(100%)
+              let overlay = gradient.linear(
+                overlay-edge, overlay-center, overlay-edge, angle: 0deg)
+              place(top + left, md-region(
+                shadow-shapes, flip: flip, fill: overlay))
+            }
           }
         } else {
           // "fuzzy" and "plain": concentric copies, each larger and fainter.
@@ -1015,14 +1160,10 @@
           // rotation ever happened, because text fits the box it is given.
           let turn = if swoosh-side == "left" { 90deg } else { -90deg }
           let bx = if swoosh-side == "left" { mL } else { W - mR - tab-h }
-          place(top + left,
-            dx: (bx + tab-h / 2 - lw / 2) * 1cm,
-            dy: flip - (fy0 + t + tab-h / 2) * 1cm,
-            rotate(turn, origin: center + horizon, reflow: false, tab-body))
+          place(top + left, dx: ((bx + tab-h / 2 - lw / 2) * 1cm) + body-offset-x, dy: (flip - (fy0 + t + tab-h / 2) * 1cm) + body-offset-y, rotate(turn, origin: center + horizon, reflow: false, tab-body))
         } else {
           let y = if swoosh-side == "top" { fy1 } else { fy0 + tab-h }
-          place(top + left, dx: (mL + t - lw / 2) * 1cm,
-            dy: flip - y * 1cm, tab-body)
+          place(top + left, dx: ((mL + t - lw / 2) * 1cm) + body-offset-x, dy: (flip - y * 1cm) + body-offset-y, tab-body)
         }
       }
 
@@ -1042,9 +1183,7 @@
         // the icon badge, on the leading edge
         let ix = if rtl { W - mR - tins - 0.16 } else { mL + tins + 0.16 }
         if icon != none {
-          place(top + left, dx: (ix - 0.16) * 1cm,
-            dy: flip - (fy1 - th / 2 + 0.16) * 1cm,
-            box(width: 0.32cm, height: 0.32cm, place(center + horizon,
+          place(top + left, dx: ((ix - 0.16) * 1cm) + icon-offset-x, dy: (flip - (fy1 - th / 2 + 0.16) * 1cm) + icon-offset-y, box(width: 0.32cm, height: 0.32cm, place(center + horizon,
               text(fill: tc, size: 0.8em, weight: "bold", icon))))
         }
         // The icon sits on the LEADING edge, so the room it takes has to
@@ -1057,8 +1196,7 @@
         let icon-w = if icon != none { 0.42 } else { 0.0 }
         let tx = mL + tins + (if rtl { 0.0 } else { icon-w })
         let avail-w = W - mL - mR - 2 * tins - icon-w
-        place(top + left, dx: tx * 1cm, dy: flip - (fy1 - tins) * 1cm,
-          box(width: avail-w * 1cm,
+        place(top + left, dx: (tx * 1cm) + title-offset-x, dy: (flip - (fy1 - tins) * 1cm) + title-offset-y, box(width: avail-w * 1cm,
             align(start, text(fill: tc, weight: "bold", title))))
         cursor = fy1 - th
       }
@@ -1088,15 +1226,11 @@
           seed + 30 + i, tw, fr, closed: false))
         place(top + left, SP(((mL, cursor - hh), (W - mR, cursor - hh)),
           seed + 40 + i, tw, fr, closed: false))
-        place(top + left, dx: (mL + tins) * 1cm,
-          dy: flip - (cursor - tins) * 1cm,
-          box(width: (W - mL - mR - 2 * tins) * 1cm,
+        place(top + left, dx: ((mL + tins) * 1cm) + title-offset-x, dy: (flip - (cursor - tins) * 1cm) + title-offset-y, box(width: (W - mL - mR - 2 * tins) * 1cm,
             align(start, text(weight: "bold", fill: colour.darken(18%),
               subtitles.at(i).at(0)))))
         cursor = cursor - hh
-        place(top + left, dx: (mL + ins) * 1cm,
-          dy: flip - (cursor - ins) * 1cm,
-          box(width: inner-w, align(start, subtitles.at(i).at(1))))
+        place(top + left, dx: ((mL + ins) * 1cm) + title-offset-x, dy: (flip - (cursor - ins) * 1cm) + title-offset-y, box(width: inner-w, align(start, subtitles.at(i).at(1))))
         cursor = cursor - bhh
       }
 
@@ -1242,14 +1376,19 @@
         // 1. paint the missing corner out, back to the page
         let cut = ((cx, cy + f), (cx + sgn * f, cy), (cx, cy))
         place(top + left, md-region((cut,), flip: flip, fill: white))
-        // 2. a soft shadow under the lifted flap
-        for k in range(5) {
-          let t = (k + 1) / 5
-          let o = 0.035 * t
-          let sh = ((cx + sgn * o, cy + f + o), (cx + sgn * (f + o), cy + o),
-                    (cx + sgn * o, cy + o))
+        // 2. The flap casts a soft, widening shadow along its diagonal fold.
+        // The first version displaced the triangular shade by only 0.035 cm
+        // and faded it almost to zero, so the gray read as a detached corner
+        // patch instead of following the crease. Stack offset copies of the
+        // flap silhouette: darkest beside the fold, then fading INTO the page.
+        for k in range(8) {
+          let t = (k + 1) / 8
+          let o = 0.14 * t
+          let sh = ((cx + sgn * o, cy + f + o),
+            (cx + sgn * (f + o), cy + o), (cx + sgn * o, cy + o))
+          let opacity = 16% * (1 - t)
           place(top + left, md-region((sh,), flip: flip,
-            fill: luma(90).transparentize(100% - 8% * (1 - t))))
+            fill: luma(82).transparentize(100% - opacity)))
         }
         // 3. the flap itself, shaded so it reads as turned over
         let flap = ((cx, cy + f), (cx + sgn * f, cy), (cx, cy))
@@ -1344,7 +1483,7 @@
               seed + 107, weight, tb.darken(28%), closed: false))
           }
           let lx = if rtl { W - x1 } else { x0 }
-          place(top + left, dx: lx * 1cm, dy: flip - ty * 1cm, tab-body)
+          place(top + left, dx: (lx * 1cm) + body-offset-x, dy: (flip - ty * 1cm) + body-offset-y, tab-body)
         } else if tab == "dots" {
           // The Note heading of the same file: a pale plaque riding ON the
           // rule, held by a solid stud at each end. In the source those
@@ -1483,9 +1622,7 @@
               tab-h / 2, sharp: sq-trailing)
           }
           FR(lab, seed + 101, tb)
-          place(top + left,
-            dx: (if rtl { W - x1 } else { x0 }) * 1cm,
-            dy: flip - (ty + tab-h) * 1cm, tab-body)
+          place(top + left, dx: ((if rtl { W - x1 } else { x0 }) * 1cm) + body-offset-x, dy: (flip - (ty + tab-h) * 1cm) + body-offset-y, tab-body)
           let cur = x1
 
           // the number block — square, butted straight onto the label
@@ -1555,8 +1692,7 @@
           FR(((mx(x0), ty), (mx(x1), ty),
               (mx(x1), ty + tab-h), (mx(x0), ty + tab-h)), seed + 100, tb)
           let lx = if rtl { W - x1 } else { x0 }
-          place(top + left, dx: lx * 1cm,
-            dy: flip - (ty + tab-h) * 1cm, tab-body)
+          place(top + left, dx: (lx * 1cm) + body-offset-x, dy: (flip - (ty + tab-h) * 1cm) + body-offset-y, tab-body)
         } else if tab == "exercise" {
           // The exercise header: a solid slab of colour carrying the word,
           // a boxed number riding at its end, and a run of fading chevrons.
@@ -1568,8 +1704,7 @@
                       (mx(x0 + tw2), ty + tab-h), (mx(x0), ty + tab-h))
           let lx = if rtl { W - x0 - tw2 } else { x0 }
           FR(slab, seed + 88, tb)
-          place(top + left, dx: lx * 1cm,
-            dy: flip - (ty + tab-h) * 1cm, tab-body)
+          place(top + left, dx: (lx * 1cm) + body-offset-x, dy: (flip - (ty + tab-h) * 1cm) + body-offset-y, tab-body)
           let cur = x0 + tw2
 
           // the number, in a box outlined in the same colour
@@ -1633,8 +1768,7 @@
           let lx = if rtl { W - x0 - tw2 } else { x0 }
           place(top + left, md-region((flag,), flip: flip, fill: tb))
           place(top + left, SP(flag, seed + 80, weight, fr))
-          place(top + left, dx: lx * 1cm,
-            dy: flip - (ty + tab-h) * 1cm, tab-body)
+          place(top + left, dx: (lx * 1cm) + body-offset-x, dy: (flip - (ty + tab-h) * 1cm) + body-offset-y, tab-body)
         } else if tab == "plaque" {
           // `mdframed`'s TikZ theorem heading: a flat slab of colour set a
           // little in from the leading edge and centred ON the top rule, so
@@ -1653,8 +1787,7 @@
           if plaque-rule {
             place(top + left, SP(slab, seed + 86, weight, fr))
           }
-          place(top + left, dx: lx * 1cm,
-            dy: flip - (ty + tab-h) * 1cm, tab-body)
+          place(top + left, dx: (lx * 1cm) + body-offset-x, dy: (flip - (ty + tab-h) * 1cm) + body-offset-y, tab-body)
         } else if tab == "ribbon" {
           let x0 = mL + 0.2
           let ty = fy1
@@ -1665,8 +1798,7 @@
           let lx = if rtl { W - x0 - tw2 } else { x0 }
           place(top + left, md-region((rib,), flip: flip, fill: tb))
           place(top + left, SP(rib, seed + 82, weight, fr))
-          place(top + left, dx: lx * 1cm,
-            dy: flip - (ty + tab-h) * 1cm, tab-body)
+          place(top + left, dx: (lx * 1cm) + body-offset-x, dy: (flip - (ty + tab-h) * 1cm) + body-offset-y, tab-body)
         } else {
           // A rounded lobe hanging under the bottom edge, centred. Its
           // corners are rounded by a small fixed radius; deriving the radius
@@ -1680,7 +1812,7 @@
             sharp: ("northwest", "northeast"))
           place(top + left, md-region((lobe,), flip: flip, fill: tb))
           place(top + left, SP(lobe, seed + 84, weight, fr))
-          place(top + left, dx: tx * 1cm, dy: flip - ty * 1cm, tab-body)
+          place(top + left, dx: (tx * 1cm) + body-offset-x, dy: (flip - ty * 1cm) + body-offset-y, tab-body)
         }
       }
 
@@ -1720,13 +1852,32 @@
   text-colour: white,
   weight: 2.6pt,
   ring: 0.16,             // the white inner rule
-  rough: false,
+  rough: auto,           // auto = follow the theme (hand-drawn when it sets `roughness` > 0)
   roughness: 1.0,
   bowing: 0.6,
   seed: 5,
+  vintage: false,         // engraved elliptical-nib trace (native colours)
+  vintage-pen: none,
 
-  direction: auto,) = context {
+  direction: auto,
+  body-offset-x: 0pt,
+  body-offset-y: 0pt,
+) = context {
+  let _th = theme-state.get()
+  let rough = if rough != auto { rough } else {
+    let tr = _th.at("rough", default: auto)
+    if tr != auto { tr } else {
+      _th.at("roughness-set", default: false) and _th.at("roughness", default: 1.0) > 0
+    }
+  }
+  let roughness = roughness * _th.at("roughness", default: 1.0)
   let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
+  let print-mode = theme-state.get().mode == "print"
+  let colour = if print-mode { white } else { colour }
+  let text-colour = if print-mode { black } else { text-colour }
+  let outer-stroke = if print-mode { black } else { colour.darken(12%) }
+  let inner-stroke = if print-mode { luma(224) } else { white }
+  if print-mode { set text(fill: black) }
   set text(dir: if rtl { std.rtl } else { ltr })
   set align(start)
 
@@ -1737,12 +1888,13 @@
     let outer = _ngon(c, R - 0.04, n: sides)
     let inner = _ngon(c, R - 0.04 - ring, n: sides)
     place(top + left, md-region((outer,), flip: flip, fill: colour))
-    place(top + left, _stroke-path(outer, flip, colour.darken(12%), weight,
-      rough: rough, seed: seed, roughness: roughness, bowing: bowing))
-    place(top + left, _stroke-path(inner, flip, white, weight * 0.9,
-      rough: rough, seed: seed + 3, roughness: roughness, bowing: bowing))
-    place(center + horizon,
-      text(fill: text-colour, weight: "bold", size: 1.5em, body))
+    place(top + left, _stroke-path(outer, flip, outer-stroke, weight,
+      rough: rough, seed: seed, roughness: roughness, bowing: bowing,
+      vintage: vintage, vintage-pen: vintage-pen))
+    place(top + left, _stroke-path(inner, flip, inner-stroke, weight * 0.9,
+      rough: rough, seed: seed + 3, roughness: roughness, bowing: bowing,
+      vintage: vintage, vintage-pen: vintage-pen))
+    place(center + horizon, dx: body-offset-x, dy: body-offset-y, text(fill: text-colour, weight: "bold", size: 1.5em, body))
   })
 }
 
@@ -1757,14 +1909,34 @@
   weight: 0.9pt,
   inset: 0.26cm,
   fold-size: 0.34,
-  rough: false,
+  rough: auto,           // auto = follow the theme (hand-drawn when it sets `roughness` > 0)
   roughness: 1.0,
   bowing: 0.6,
   seed: 3,
   width: 100%,
+  vintage: false,         // engraved elliptical-nib trace (native colours)
+  vintage-pen: none,
 
-  direction: auto,) = context {
+  direction: auto,
+  body-offset-x: 0pt,
+  body-offset-y: 0pt,
+  icon-offset-x: 0pt,
+  icon-offset-y: 0pt,
+) = context {
+  let _th = theme-state.get()
+  let rough = if rough != auto { rough } else {
+    let tr = _th.at("rough", default: auto)
+    if tr != auto { tr } else {
+      _th.at("roughness-set", default: false) and _th.at("roughness", default: 1.0) > 0
+    }
+  }
+  let roughness = roughness * _th.at("roughness", default: 1.0)
   let rtl = is-rtl()
+  let print-mode = theme-state.get().mode == "print"
+  let colour = if print-mode { white } else { colour }
+  let icon-fill = if print-mode { luma(224) } else { icon-fill }
+  let frame = if print-mode { black } else { frame }
+  if print-mode { set text(fill: black) }
   set text(dir: if rtl { std.rtl } else { ltr })
   set align(start)
   layout(avail => {
@@ -1785,9 +1957,10 @@
       } else {
         ((x0, 0.03), (x1 - f, 0.03), (x1, f), (x1, H - 0.03), (x0, H - 0.03))
       }
-      place(top + left, md-region((body-pts,), flip: flip, fill: colour))
-      place(top + left, _stroke-path(body-pts, flip, frame, weight,
-        rough: rough, seed: seed, roughness: roughness, bowing: bowing))
+      place(top + left, dx: body-offset-x, dy: body-offset-y, md-region((body-pts,), flip: flip, fill: colour))
+      place(top + left, dx: body-offset-x, dy: body-offset-y, _stroke-path(body-pts, flip, frame, weight,
+        rough: rough, seed: seed, roughness: roughness, bowing: bowing,
+        vintage: vintage, vintage-pen: vintage-pen))
       // the folded flap
       let flap = if rtl { ((x0, f), (x0 + f, f), (x0 + f, 0.03)) }
                  else { ((x1 - f, 0.03), (x1 - f, f), (x1, f)) }
@@ -1795,16 +1968,15 @@
         fill: colour.darken(22%)))
       place(top + left, _stroke-path(flap, flip, frame, weight * 0.9,
         rough: rough, seed: seed + 2, roughness: roughness, bowing: bowing,
-        closed: false))
+        closed: false, vintage: vintage, vintage-pen: vintage-pen))
       // the icon block
       let ix = if rtl { W - 0.03 - icw } else { 0.03 }
       let blk = ((ix, 0.03), (ix + icw, 0.03), (ix + icw, H - 0.03),
                  (ix, H - 0.03))
-      place(top + left, md-region((blk,), flip: flip, fill: icon-fill))
-      place(top + left, dx: ix * 1cm, dy: 0cm,
-        box(width: icw * 1cm, height: H * 1cm,
+      place(top + left, dx: icon-offset-x, dy: icon-offset-y, md-region((blk,), flip: flip, fill: icon-fill))
+      place(top + left, dx: (ix * 1cm) + icon-offset-x, dy: (0cm) + icon-offset-y, box(width: icw * 1cm, height: H * 1cm,
           place(center + horizon,
-            text(fill: white, weight: "bold", size: 1.15em, icon))))
+            text(fill: if print-mode { black } else { white }, weight: "bold", size: 1.15em, icon))))
       // the text
       let tx = if rtl { 0.03 + ins } else { 0.03 + icw + ins }
       place(top + left, dx: tx * 1cm, dy: (H - _cm(measure(inner).height))
@@ -1843,11 +2015,21 @@
   number-colour: auto,            // auto = `colour`
   height: 0.72,                   // pill height, in cm
   gap: 0.34,                      // space between the pieces
-  rough: false,
+  rough: auto,           // auto = follow the theme (hand-drawn when it sets `roughness` > 0)
   roughness: 1.0,
   bowing: 0.6,
   seed: 21,
+  vintage: false,         // engraved elliptical-nib trace (native colours)
+  vintage-pen: none,
 ) = context {
+  let _th = theme-state.get()
+  let rough = if rough != auto { rough } else {
+    let tr = _th.at("rough", default: auto)
+    if tr != auto { tr } else {
+      _th.at("roughness-set", default: false) and _th.at("roughness", default: 1.0) > 0
+    }
+  }
+  let roughness = roughness * _th.at("roughness", default: 1.0)
   let rtl = is-rtl()
   let h = _cm(height)
   let g = _cm(gap)
@@ -1864,7 +2046,8 @@
   // guess) sits meekly inside the pill instead of breaking its outline.
   let disc = h * 1.30
   let n-body = if number == none { none } else {
-    text(fill: black, weight: "bold", size: 0.95em, number)
+    text(fill: black, weight: "bold", size: 0.95em,
+      if type(number) == content { number } else { str(number) })
   }
   // the pill runs behind the disc, so its own length stops at the centre
   let pill-w = ww + (if number == none { 0.0 } else { disc / 2 })
@@ -1912,7 +2095,8 @@
       let ring = circle-pts((mx(cx), h / 2), disc / 2, n: 48)
       FR(ring, seed + 1, white)
       place(top + left, _stroke-path(ring, flip, nc, 1.6pt,
-        rough: rough, seed: seed + 2, roughness: roughness, bowing: bowing))
+        rough: rough, seed: seed + 2, roughness: roughness, bowing: bowing,
+        vintage: vintage, vintage-pen: vintage-pen))
       place(top + left, dx: (mx(cx) - disc / 2) * 1cm,
         dy: flip - (h / 2 + disc / 2) * 1cm,
         box(width: disc * 1cm, height: disc * 1cm,

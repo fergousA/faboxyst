@@ -6,6 +6,8 @@
 //   tail-at       0–1 along the bottom (or top) edge
 
 #import "fabox.typ": is-rtl
+#import "antique.typ": vintage-pts
+#import "theme.typ": theme-state
 
 #let _ellipse-pts(cx, cy, rx, ry, n: 48) = range(n).map(i => {
   let a = 360deg * i / n
@@ -17,8 +19,9 @@
   fill: rgb("#FF8A1F"),
   ink: black,
   stroke: 2.4pt,
-  width: 100%,
+  width: auto,
   height: auto,
+  leading: 0.5em,
   tail: "sw",
   tail-width: 0.85cm,
   tail-length: 0.55cm,
@@ -26,13 +29,29 @@
   gloss: true,
   size: 1.35em,
   direction: auto,
+  vintage: false,      // the bubble outline engraved with a nib
+  vintage-pen: none,
 ) = context {
+  let print-mode = theme-state.get().mode == "print"
+  let fill = if print-mode { white } else { fill }
+  let ink = if print-mode { black } else { ink }
+  let gloss = if print-mode { false } else { gloss }
+  if print-mode { set text(fill: black) }
   let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
   layout(avail => {
-    let W = if type(width) == ratio { avail.width * width } else { width }
+    let raw = text(size: size, weight: "bold", fill: ink, {
+      if leading != auto { set par(leading: leading) }
+      body
+    })
+    let W = if width == auto {
+      calc.min(avail.width, (measure(raw).width + 0.44cm) / 0.82)
+    } else if type(width) == ratio {
+      avail.width * width
+    } else {
+      width
+    }
     let inner = box(width: W * 0.82, inset: (x: 0.22cm, y: 0.16cm),
-      align(center + horizon,
-        text(size: size, weight: "bold", fill: ink, body)))
+      align(center + horizon, raw))
     let mh = measure(inner).height
     let bh = if height == auto { calc.max(mh + 0.28cm, 1.65cm) } else { height }
     let tw = tail-width
@@ -48,6 +67,8 @@
     let oy = pad + up + bh / 2
     let rx = bw / 2
     let ry = bh / 2
+    // a short text makes a small bubble: the pointer must not outgrow it
+    let tw = calc.min(tw, rx * 0.5)
     let n = 56
     let raw = _ellipse-pts(ox, oy, rx, ry, n: n)
     // Angles: 0° = east, 90° = south (y down in page coords of cos/sin
@@ -103,7 +124,13 @@
     }
 
     block(width: W, height: bh + down + up + 2 * pad, {
-      place(top + left, polygon(fill: fill, stroke: stroke + black, ..pts))
+      place(top + left, polygon(
+        fill: fill,
+        stroke: if vintage { none } else { stroke + black }, ..pts))
+      if vintage {
+        place(top + left, vintage-pts(pts, black, stroke,
+          closed: true, vintage-pen: vintage-pen))
+      }
       if gloss {
         place(top + left, dx: ox - rx * 0.55, dy: oy - ry * 0.55,
           ellipse(width: rx * 0.55, height: ry * 0.28,

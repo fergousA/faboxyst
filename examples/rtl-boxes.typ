@@ -8,7 +8,7 @@
 //  file falls back to DejaVu when absent.
 // ===========================================================================
 
-#import "@preview/faboxyst:0.2.0": *
+#import "../lib.typ": *
 
 #set page(width: 16cm, height: auto, margin: 9mm, fill: white)
 #set text(dir: rtl, lang: "ar", font: ("Amiri", "DejaVu Serif"), size: 10.5pt)
@@ -48,6 +48,8 @@
 // ---------------------------------------------------------------------------
 = الشرائط والأختام
 
+// flagbox's title ribbon rises above its frame; leave room after the heading.
+#v(0.55cm)
 #flagbox(title: [شريط العنوان], colour: rgb("#1F6F4A"))[
   يجلس الشريط على الحافة العلوية للصندوق، وتنقلب الشارة والزخارف
   مع اتجاه المستند.

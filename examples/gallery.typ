@@ -1,6 +1,6 @@
 // faboxyst — exhaustive gallery: one cell per exported box family, with
 // its name as caption. Compile to PDF for a map of the whole package.
-#import "@preview/faboxyst:0.2.0": *
+#import "../lib.typ": *
 
 #set page(width: 21cm, height: 29.7cm, margin: 1.1cm, fill: rgb("#F5F4F0"))
 #set text(size: 8.5pt, fill: rgb("#222222"))
@@ -128,6 +128,6 @@
     Le ruban kit au-dessus du corps, LTR ou RTL.]),
   cell("rosettebox / cadre-rosette", rosettebox(title: [Édition], scale: 0.42)[
     Le cadre dédicace adapté à son contenu.]),
-  cell("rosette-pages (frame)", rosettebox([], width: 100%, height: 1.7cm,
+  cell("rosettebox (hauteur fixe)", rosettebox([], width: 100%, height: 1.7cm,
     scale: 0.38, diamonds: 3)),
 )

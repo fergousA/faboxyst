@@ -8,8 +8,8 @@
 #cmd-title[mark · hl · mark-emph]
 #sig[
 ```typ
-#mark(body, kind: "highlight", colour: auto, weight: auto, seed: 3,
-  rough: true, expand: 0.16em, opacity: auto)
+#mark(body, kind: "highlight", colour: auto, fill: none, weight: auto, seed: 3,
+  rough: true, expand: 0.16em, inset: 0pt, opacity: auto)
 #hl(body, colour: auto)     // kind: "highlight"
 #mark-emph(colour: auto, kind: "highlight")
 // kinds: highlight underline double wave circle box strike scribble bracket jagged fan
@@ -35,6 +35,10 @@
   [#mark(kind: "bracket")[bracket] · #mark(kind: "jagged", colour: rgb("#EF6C00"))[jagged] · #mark(kind: "fan")[fan]],
   rtl-box[#mark(kind: "bracket")[قوس] · #mark(kind: "jagged")[خشن]],
   code: `#mark(kind: "bracket")[bracket]`)
+#param-row([fill + inset],
+  [#mark(kind: "fan", colour: rgb("#7B2CBF"), fill: rgb("#D8B4FE"), inset: 0.10em)[filled fan]],
+  rtl-box[#mark(kind: "bracket", colour: teal, fill: rgb("#BEE3DB"), inset: (x: 0.12cm, y: 0.08cm))[قوس مملوء]],
+  code: `#mark(kind: "fan", fill: lavender, inset: 0.1em)[…]`)
 #param-row([hl / mark-emph],
   [Use #hl[yellow] or #mark-emph()[emph].],
   rtl-box[#hl[أصفر] و #mark-emph()[تأكيد].],
@@ -98,7 +102,7 @@
 #cmd-title[sb-underline · sb-divider · lesson-table · notepad]
 #sig[
 ```typ
-#sb-underline(body, colour: auto, span: 0.56)
+#sb-underline(body, colour: auto, span: 1.0)
 #sb-divider(colour: auto)
 #lesson-table(..cells, columns: auto, header: true)
 #notepad(body, crumpled: false, rings: auto, side: auto)
@@ -149,9 +153,10 @@
 #sig[
 ```typ
 #plankbox(body, title: none, wood: auto, edge: auto, streak: auto,
-  text-fill: auto, title-size: 1.1em, tilt: 2deg, gap: 0.06cm,
-  weight: 1.6pt, jitter: 0.8pt, mottle: 6%, inset: (x: 0.55cm, y: 0.30cm),
-  width: 96%, seed: auto, direction: auto)
+  text-fill: auto, title-size: 1.1em, leading: auto, tilt: 2deg,
+  gap: 0.06cm, weight: 1.6pt, jitter: 0.8pt, mottle: 6%,
+  inset: (x: 0.55cm, y: 0.30cm), width: auto, height: auto,
+  seed: auto, direction: auto, vintage: false, vintage-pen: none)
 #pancarte(..a)   // French alias of plankbox
 ```
 ]
@@ -167,6 +172,14 @@
   ltr-box(plankbox([Salle 12 — menuiserie], width: 70%)),
   rtl-box(plankbox([قاعة ١], width: 70%)),
   code: `#plankbox[Salle 12]`)
+#param-row([auto width + fixed height],
+  ltr-box(plankbox(height: 1.8cm, tilt: 0deg)[auto width]),
+  rtl-box(plankbox(width: 55%, height: 1.8cm, tilt: 0deg)[explicit ratio]),
+  code: `#plankbox(height: 1.8cm)[auto width]`)
+#param-row([leading + vintage pen],
+  ltr-box(plankbox(leading: 0.85em, tilt: 0deg)[leading direct]),
+  rtl-box(plankbox(vintage: true, vintage-pen: (0.05cm, 0.016cm, 30deg), tilt: 0deg)[elliptical nib]),
+  code: `#plankbox(leading: 0.85em, vintage: true)[…]`)
 #param-row([recoloured walnut],
   ltr-box(plankbox(title: [Atelier], wood: rgb("#C89058"),
     streak: rgb("#8A5A2B"), width: 92%)[#en-sample]),

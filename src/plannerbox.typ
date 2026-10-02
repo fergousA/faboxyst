@@ -5,6 +5,9 @@
 // ===========================================================================
 
 #import "fabox.typ": is-rtl
+#import "antique.typ": vintage-pts
+
+#import "theme.typ": theme-state
 
 #let _ring(width, radius, thickness, paint, rtl) = {
   let body = {
@@ -40,7 +43,23 @@
   inset: 0.34cm,
   width: 100%,
   direction: auto,
+  vintage: false,      // main frame engraved with an elliptical nib
+  vintage-pen: none,
+  body-offset-x: 0pt,
+  body-offset-y: 0pt,
+  title-offset-x: 0pt,
+  title-offset-y: 0pt,
 ) = context {
+  let print-mode = theme-state.get().mode == "print"
+  let colour = if print-mode { white } else { colour }
+  let badge-fill = if print-mode { luma(224) } else { badge-fill }
+  let bar = if print-mode { white } else { bar }
+  let hole = if print-mode { luma(224) } else { hole }
+  let ring-colour = if print-mode { black } else { ring-colour }
+  let fill = if print-mode { white } else { fill }
+  let title-colour = if print-mode { black } else { title-colour }
+  if print-mode { set text(fill: black) }
+
   let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
   let body-dir = if rtl { std.rtl } else { ltr }
   let bh0 = bar-height
@@ -52,7 +71,7 @@
     text(fill: title-colour, weight: "bold", size: 0.80em, title)
   }
   let num-body = if number == none { none } else {
-    text(fill: white, weight: "bold", size: 0.88em, dir: ltr, number)
+    text(fill: if print-mode { black } else { white }, weight: "bold", size: 0.88em, dir: ltr, number)
   }
   let tm = if title-body == none { (width: 0pt, height: 0pt) }
            else { measure(title-body) }
@@ -100,7 +119,13 @@
 
       place(top + left, dx: px,
         box(width: paper-w, height: H, fill: fill,
-          stroke: if frame { frame-weight + luma(180) } else { none }))
+          stroke: if vintage { none }
+                  else if frame { frame-weight + (if print-mode { black } else { luma(180) }) } else { none }))
+      if vintage and frame {
+        place(top + left, dx: px,
+          vintage-pts(((0pt, 0pt), (paper-w, 0pt), (paper-w, H), (0pt, H)),
+            if print-mode { black } else { luma(180) }, frame-weight, vintage-pen: vintage-pen))
+      }
 
       place(top + left, dx: px, box(width: paper-w, height: bh0, fill: bar))
 
@@ -108,13 +133,11 @@
         let tab-inset = if number == none { (x: 0.14cm) }
           else if rtl { (left: overlap + 0.08cm, right: 0.14cm, y: 0pt) }
           else { (right: overlap + 0.08cm, left: 0.14cm, y: 0pt) }
-        place(top + left, dx: px + tab-x-local,
-          box(width: tab-w, height: bh0, fill: colour, radius: bh0 / 2,
+        place(top + left, dx: (px + tab-x-local) + title-offset-x, dy: title-offset-y, box(width: tab-w, height: bh0, fill: colour, radius: bh0 / 2,
             inset: tab-inset, align(center + horizon, title-body)))
       }
       if number != none {
-        place(top + left, dx: px + badge-x-local,
-          box(width: badge-w, height: bh0, fill: badge-fill, radius: 50%,
+        place(top + left, dx: (px + badge-x-local) + body-offset-x, dy: body-offset-y, box(width: badge-w, height: bh0, fill: badge-fill, radius: 50%,
             align(center + horizon, num-body)))
       }
 

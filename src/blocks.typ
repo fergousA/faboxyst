@@ -9,7 +9,7 @@
 
 #import "@preview/cetz:0.5.2"
 #import "engine.typ" as eng
-#import "theme.typ": theme-state, heading-weight
+#import "theme.typ": theme-state, heading-weight, grayscale-paint
 #import "fabox.typ": is-rtl
 #import "watermark.typ": paint-watermark, resolve-wm-colour
 
@@ -53,6 +53,8 @@
   radius: auto,
   pad: auto,
   width: auto,
+  height: auto,
+  leading: 0.5em,
   seed: auto,
   roughness: auto,
   hatch: none,          // e.g. (angle: 45, spacing: 0.16) to hatch the inside
@@ -61,6 +63,7 @@
   inset-top: 0pt,       // extra room reserved above the content
   passes: 1,            // draw the outline N times (2 = sketched twice)
   pass-offset: 0.06,    // how far apart the passes sit, cm
+  pass-colour: auto,    // colour of the extra passes (auto = the outline colour)
   curl: 0.42,           // corner curl for shape: "plaque"
   text-fill: auto,      // colour for the content
   breakable: false,      // see the note below
@@ -69,18 +72,33 @@
   watermark-angle: -18deg,
   watermark-size: 2.1em,
 
-  direction: auto,) = context {
+  direction: auto,
+  vintage: false,       // outline engraved with an elliptical nib (stroke only;
+                        // the box keeps its native colours). With `breakable:
+                        // true` the frame is a native stroke, so vintage is
+                        // ignored there.
+  vintage-pen: none,    // (th, th2, angle) override for the nib
+) = context {
   let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
   set text(dir: if rtl { std.rtl } else { ltr })
+  if leading != auto { set par(leading: leading) }
   set align(start)
 
   let th = theme-state.get()
-  let col = if stroke-colour == auto { th.accent } else { stroke-colour }
-  let sw = if stroke-weight == auto { th.stroke-weight } else { stroke-weight }
+  let print-mode = th.mode == "print"
+  let col = if print-mode { black }
+    else if stroke-colour == auto { th.accent } else { stroke-colour }
+  let sw = if print-mode { 1.2pt }
+    else if stroke-weight == auto { th.stroke-weight } else { stroke-weight }
   let p = if pad == auto { th.pad } else { pad }
   let rad = if radius == auto { th.radius } else { radius }
-  let rough = if roughness == auto { th.roughness } else { roughness }
-  let box-fill = fill
+  let rough = if print-mode { 0.0 }
+    else if roughness == auto { th.roughness } else { roughness }
+  let box-fill = if print-mode { white } else { fill }
+  let print-shadow = if print-mode {
+    if shadow == none { none } else { grayscale-paint(shadow) }
+  } else { shadow }
+  let resolved-text-fill = if print-mode { black } else { text-fill }
   let sd = if seed == auto { th.seed + seed-counter.get().first() * 17 } else { seed }
   let opts = (amplitude: 0.5 * rough, wavelength: 100.0 / calc.max(rough, 0.2))
 
@@ -92,25 +110,30 @@
   // it just loses the wobble. Documented in the guide.
   if breakable {
     return block(
-      width: if width == auto { 100% } else { width },
+      width: width,
+      height: height,
       inset: p + 0.10cm,
       radius: rad * 1cm * 0.8,
       fill: box-fill,
       stroke: (paint: col, thickness: sw),
       breakable: true,
-      body,
+      if print-mode { text(fill: black, body) } else { body },
     )
   }
 
   layout(avail => {
-    let outer-w = if width == auto { avail.width } else {
-      if type(width) == ratio { avail.width * width } else { width }
-    }
     // room the frame itself needs outside the content
     let bleed = if shape == "burst" { 0.55cm }
       else if passes > 1 { sw + pass-offset * 1cm }
       else { sw }
-    let ext = if depth > 0 { depth * 1cm } else { 0pt }
+    let ext = if depth > 0 and not print-mode { depth * 1cm } else { 0pt }
+    let outer-w = if width == auto {
+      calc.min(avail.width, measure(body).width + 2 * p + 2 * bleed + ext)
+    } else if type(width) == ratio {
+      avail.width * width
+    } else {
+      width
+    }
 
     let inner-w = outer-w - 2 * p - 2 * bleed - ext
     // NB: place(top+left) below resets alignment; align(start) keeps RTL
@@ -119,9 +142,10 @@
     let m = measure(inner)
     let inner-h = m.height + inset-top
     let outer-h = inner-h + 2 * p + 2 * bleed + ext
+    let final-h = if height == auto { outer-h } else { height }
 
-    block(width: outer-w, height: outer-h, breakable: breakable, {
-      place(top + left, canvas-at(outer-w, outer-h, (W, H) => {
+    block(width: outer-w, height: final-h, breakable: breakable, {
+      place(top + left, canvas-at(outer-w, final-h, (W, H) => {
         import cetz.draw: *
         let b = to-cm(bleed)
         let e = to-cm(ext)
@@ -143,9 +167,9 @@
           eng.rect-pts(a, c)
         }
 
-        if shadow != none {
+        if print-shadow != none {
           let s = pts.map(q => (q.at(0) + 0.10, q.at(1) - 0.10))
-          eng.s-line(s, seed: sd + 91, closed: true, fill: shadow,
+          eng.s-line(s, seed: sd + 91, closed: true, fill: print-shadow,
             stroke: none, opts: opts)
         }
         if depth > 0 {
@@ -167,22 +191,26 @@
             else { (paint: col, thickness: sw, join: "round") }
           eng.s-line(pts, seed: sd, closed: true,
             fill: if hatch == none { box-fill } else { none },
-            stroke: st, opts: opts)
+            stroke: st, opts: opts, vintage: vintage,
+            vintage-pen: vintage-pen)
           // extra passes: the same outline drawn again, slightly offset, so
-          // it reads like a line gone over twice by hand
-          for k in range(1, passes) {
-            let d = pass-offset * k
-            let p2 = pts.map(q => (q.at(0) + d * 0.6, q.at(1) - d))
-            if col != none {
-              eng.s-line(p2, seed: sd + 137 * k, closed: true, fill: none,
-                stroke: (paint: col, thickness: sw, join: "round"),
-                opts: opts)
+          // it reads like a line gone over twice by hand (sketch only —
+          // the engraved nib is a single clean pass)
+          if not vintage {
+            for k in range(1, passes) {
+              let d = pass-offset * k
+              let p2 = pts.map(q => (q.at(0) + d * 0.6, q.at(1) - d))
+              if col != none {
+                eng.s-line(p2, seed: sd + 137 * k, closed: true, fill: none,
+                  stroke: (paint: if pass-colour == auto { col } else { pass-colour }, thickness: sw, join: "round"),
+                  opts: opts)
+              }
             }
           }
         }
       }))
       place(top + left, dx: p + bleed, dy: p + bleed + inset-top,
-        if text-fill == auto { inner } else { text(fill: text-fill, inner) })
+        if resolved-text-fill == auto { inner } else { text(fill: resolved-text-fill, inner) })
     })
   })
 }
@@ -264,7 +292,8 @@
   set align(start)
 
   let th = theme-state.get()
-  let col = if colour == auto { th.accent } else { colour }
+  let print-mode = th.mode == "print"
+  let col = if print-mode { black } else if colour == auto { th.accent } else { colour }
   let dir = th.dir
   let s = if rtl { -1.0 } else { 1.0 }
   let sd = if seed == auto { th.seed + seed-counter.get().first() * 17 } else { seed }
@@ -379,9 +408,12 @@
   set align(start)
 
   let th = theme-state.get()
-  let col = if colour == auto { th.accent } else { colour }
-  let tf = if title-fill == auto { th.palette.red } else { title-fill }
+  let print-mode = th.mode == "print"
+  let col = if print-mode { black } else if colour == auto { th.accent } else { colour }
+  let tf = if print-mode { black }
+    else if title-fill == auto { th.palette.red } else { title-fill }
   let ts = if title-size == auto { th.size * 2.0 } else { title-size }
+  let sparks = if print-mode { false } else { sparks }
   let dir = th.dir
   let s = if rtl { -1.0 } else { 1.0 }
   let sd = if seed == auto { th.seed + seed-counter.get().first() * 17 } else { seed }
@@ -485,8 +517,11 @@
   set align(start)
 
   let th = theme-state.get()
-  let c = if colour == auto { th.palette.hilite } else { colour }
-  let vf = if value-fill == auto { th.palette.navy } else { value-fill }
+  let print-mode = th.mode == "print"
+  let c = if print-mode { luma(224) }
+    else if colour == auto { th.palette.hilite } else { colour }
+  let vf = if print-mode { black }
+    else if value-fill == auto { th.palette.navy } else { value-fill }
   let sd = if seed == auto { th.seed + 5 } else { seed }
   block(spacing: 0.55em)[
     #highlight(colour: c, seed: sd,
@@ -501,7 +536,8 @@
 // ---------------------------------------------------------------------------
 #let frac(num, den, colour: auto, size: auto, seed: 1) = context {
   let th = theme-state.get()
-  let c = if colour == auto { th.palette.navy } else { colour }
+  let c = if th.mode == "print" { black }
+    else if colour == auto { th.palette.navy } else { colour }
   let sz = if size == auto { th.size } else { size }
   // `frac(3, 4)` is the obvious way to write a fraction, but CeTZ's
   // `content` only takes content — a bare integer reaches `text(.., num)`
@@ -526,7 +562,9 @@
   set align(start)
 
   let th = theme-state.get()
-  let c = if colour == auto { th.palette.cream } else { colour }
+  let print-mode = th.mode == "print"
+  let c = if print-mode { white }
+    else if colour == auto { th.palette.cream } else { colour }
   layout(_ => {
     let inner = box(width: width - 0.8cm, align(start, body))
     let m = measure(inner)
@@ -536,10 +574,11 @@
         import cetz.draw: *
         let pts = eng.rect-pts((0.06, -(Hc - 0.06)), (W - 0.06, -0.06))
         eng.s-line(pts.map(q => (q.at(0) + 0.07, q.at(1) - 0.07)),
-          seed: seed + 3, closed: true, fill: luma(232), stroke: none,
-          opts: (amplitude: 0.3, wavelength: 280))
+          seed: seed + 3, closed: true,
+          fill: luma(232),
+          stroke: none, opts: (amplitude: 0.3, wavelength: 280))
         eng.s-line(pts, seed: seed, closed: true, fill: c,
-          stroke: (paint: luma(214), thickness: 0.7pt),
+          stroke: (paint: if print-mode { black } else { luma(214) }, thickness: 0.7pt),
           opts: (amplitude: 0.32, wavelength: 280))
       }))
       place(top + left, dx: 0.4cm, dy: 0.4cm, inner)

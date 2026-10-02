@@ -21,8 +21,11 @@
 // ===========================================================================
 
 #import "fabox.typ": is-rtl
+#import "antique.typ": vintage-pts
 #import "watermark.typ": paint-watermark, resolve-wm-colour
 #import "ornament.typ": resolve-motif, make-palette, disc, poly, ngon-points
+
+#import "theme.typ": theme-state, grayscale-paint
 
 #let _cm(x) = if type(x) == length { x } else { x * 1cm }
 
@@ -121,7 +124,26 @@
   watermark-angle: -18deg,
   watermark-size: 2.1em,
   direction: auto,
+  vintage: false,      // the frame rule engraved with a nib
+  vintage-pen: none,
+  number-offset-x: 0pt,
+  number-offset-y: 0pt,
+  title-offset-x: 0pt,
+  title-offset-y: 0pt,
 ) = context {
+  let print-mode = theme-state.get().mode == "print"
+  let source-colour = colour
+  let print-shadow-colour = grayscale-paint(source-colour.darken(40%))
+  let colour = if print-mode { black } else { colour }
+  let fill = if print-mode { white } else { fill }
+  let ribbon = if print-mode { white } else { ribbon }
+  let ribbon-mid = if print-mode { luma(224) } else { ribbon-mid }
+  let title-colour = if print-mode { black } else { title-colour }
+  let rod-colour = if print-mode { black } else { rod-colour }
+  let badge-colour = if print-mode { luma(224) } else { badge-colour }
+  let gloss = if print-mode { false } else { gloss }
+  if print-mode { set text(fill: black) }
+
   let rtl = if direction != auto { direction == std.rtl } else { is-rtl() }
   let body-dir = if rtl { std.rtl } else { ltr }
 
@@ -170,7 +192,7 @@
         for k in range(3) {
           let t = (k + 1) / 3
           place(top + left, dx: ox + 0.02cm, dy: oy + 0.03cm + 0.03cm * t,
-            curve(fill: colour.darken(40%).transparentize(100% - 9% * (1 - t) - 4%),
+            curve(fill: (if print-mode { print-shadow-colour } else { colour.darken(40%) }).transparentize(100% - 9% * (1 - t) - 4%),
               stroke: none, .._flag-path(w, h, sp, _cm(flag-radius), tail, nk)))
         }
       }
@@ -199,15 +221,13 @@
       }
       // the words, after the badge on the leading side
       let tx = if rtl { ox } else { ox + lead }
-      place(top + left, dx: tx, dy: oy,
-        box(width: w - lead, height: h, align(center + horizon, title-body)))
+      place(top + left, dx: (tx) + title-offset-x, dy: (oy) + title-offset-y, box(width: w - lead, height: h, align(center + horizon, title-body)))
       // the badge: a disc astride the leading end of the rod
       if badge != none {
         let bx = if rtl { ox + w - bsz * 0.36 } else { ox + bsz * 0.36 }
         let by = oy + h * 0.5
         disc((bx, by), bsz / 2, fill: badge-colour, stroke: 0.7pt + fill)
-        place(top + left, dx: bx - bsz / 2, dy: by - bsz / 2,
-          box(width: bsz, height: bsz, align(center + horizon,
+        place(top + left, dx: (bx - bsz / 2) + number-offset-x, dy: (by - bsz / 2) + number-offset-y, box(width: bsz, height: bsz, align(center + horizon,
             text(fill: title-colour, weight: "bold", size: bsz * 0.46,
               number-type: "lining", dir: ltr, badge))))
       }
@@ -216,14 +236,14 @@
 
   let end-m = resolve-motif(end-motif)
 
-  block(
-    breakable: breakable,
-    width: width,
-    fill: fill,
-    stroke: stroke + colour,
-    radius: _cm(radius),
-    inset: ins,
-    {
+  layout(avail => {
+    let Wf = if type(width) == ratio { avail.width * width } else { width }
+    let il = if type(ins.left) == length { ins.left } else { _cm(ins.left) }
+    let ir = if type(ins.right) == length { ins.right } else { _cm(ins.right) }
+    let it = if type(ins.top) == length { ins.top } else { _cm(ins.top) }
+    let ib = if type(ins.bottom) == length { ins.bottom } else { _cm(ins.bottom) }
+    let Wc = Wf - il - ir
+    let inner = block(width: Wc, height: auto, {
       set text(dir: body-dir)
       set align(start)
       if has-flag {
@@ -275,6 +295,27 @@
       set text(dir: body-dir)
       set align(start)
       body
-    },
-  )
+    })
+    let H = measure(inner).height + it + ib
+    let swt = if type(stroke) == dictionary {
+      stroke.at("thickness", default: 0.4mm)
+    } else if type(stroke) == length { stroke } else { 0.4mm }
+    block(
+      breakable: breakable,
+      width: Wf,
+      height: H,
+      fill: fill,
+      stroke: if vintage { none } else { stroke + colour },
+      radius: _cm(radius),
+      {
+        // the inset lives here: `inner` is measured without it (see `H`)
+        place(top + left, dx: il, dy: it, inner)
+        if vintage {
+          place(top + left,
+            vintage-pts(((0pt, 0pt), (Wf, 0pt), (Wf, H), (0pt, H)),
+              colour, swt, vintage-pen: vintage-pen))
+        }
+      },
+    )
+  })
 }
