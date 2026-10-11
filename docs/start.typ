@@ -35,19 +35,15 @@
 
 #T[Chapters follow families of functions. Each entry gives: the name (with its aliases), a one-line description, a signature, a *table of all parameters* with default values and explanations, and an example whose code sits beside its rendering. Parameter names are consistent across the package: `colour` is the main colour, `weight` a stroke weight, `inset` the inner padding, `radius` the corner rounding, `seed` the random seed, `-x` / `-y` suffixes are horizontal and vertical offsets, and `..a` forwards extra options to the underlying box.][Les chapitres suivent les familles de fonctions. Chaque entrée donne : le nom (avec ses alias), une description d’une ligne, une signature, un *tableau de tous les paramètres* avec valeurs par défaut et explications, et un exemple dont le code est à côté du rendu. Les noms de paramètres sont cohérents dans tout le paquet : `colour` est la couleur principale, `weight` une épaisseur de trait, `inset` la marge intérieure, `radius` l’arrondi des coins, `seed` la graine aléatoire, les suffixes `-x` / `-y` des décalages horizontaux et verticaux, et `..a` transmet les options en plus à la boîte sous-jacente.]
 
-== #T("What changed in 0.3.0", "Ce qui change dans la 0.3.0")
+== #T("Migration: full-page frames", "Migration : cadres pleine page")
 
 #T[
-- *No more WebAssembly.* The two `.wasm` plug-ins and their notice are gone. The sketch engine is now pure Typst (`src/sketchcore.typ`) and the antique register draws with *nibart*.
-- *Page frames moved to nibframe.* The six page-frame functions are no longer part of faboxyst (see the table below); nibframe, which is dedicated to full-page frames, offers them as styles.
-- `plate-page`, `patent-page` and `bound-page` (spiral binding) stay: they are page *layouts*, not frames.
+In v0.3.0, six full-page frame functions moved from faboxyst to the companion package *nibframe*. They are no longer exported by faboxyst; use the matching nibframe styles below. `plate-page`, `patent-page` and `bound-page` remain because they are page layouts, not frame functions.
 ][
-- *Plus de WebAssembly.* Les deux modules `.wasm` et leur notice ont disparu. Le moteur de tracé est désormais du Typst pur (`src/sketchcore.typ`) et le registre antique dessine avec *nibart*.
-- *Les cadres de page sont passés dans nibframe.* Les six fonctions de cadre de page ne font plus partie de faboxyst (voir le tableau ci-dessous) ; nibframe, dédié aux cadres pleine page, les propose comme styles.
-- `plate-page`, `patent-page` et `bound-page` (reliure spirale) restent : ce sont des *mises en page*, pas des cadres.
+Dans la v0.3.0, six fonctions de cadre pleine page ont été transférées de faboxyst vers le paquet compagnon *nibframe*. faboxyst ne les exporte plus ; utilisez les styles nibframe correspondants ci-dessous. `plate-page`, `patent-page` et `bound-page` restent disponibles : ce sont des mises en page, pas des fonctions de cadre.
 ]
 
-#T[Former function → nibframe style:][Ancienne fonction → style nibframe :]
+#T[Former function → nibframe style:][Fonction de cadre → style nibframe :]
 #{
   set text(size: 8pt)
   table(columns: (auto, auto, 1fr), stroke: (x: none, y: 0.25pt + luma(205)), inset: (x: 4pt, y: 3pt),

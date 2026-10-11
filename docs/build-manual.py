@@ -30,7 +30,7 @@ def compile(lang, chapter, first=1, starts=None):
     return pdf
 
 def build(lang):
-    order = ['cover', 'toc', 'start'] + ids + ['aliases']
+    order = ['cover', 'whatsnew', 'toc', 'start'] + ids + ['aliases']
     # 1) page counts (parallel, 2 at a time)
     with ThreadPoolExecutor(2) as ex:
         pdfs = list(ex.map(lambda c: compile(lang, c), order))
@@ -42,7 +42,7 @@ def build(lang):
     with ThreadPoolExecutor(2) as ex:
         pdfs = list(ex.map(lambda c: compile(lang, c, starts[c], starts), order))
     w = PdfWriter(); pos = 0
-    names = {'cover': ('Cover', 'Couverture'), 'toc': ('Contents', 'Sommaire'), 'start': ('Getting started', 'Prise en main'), 'aliases': ('Aliases and index', 'Alias et index')}
+    names = {'cover': ('Cover', 'Couverture'), 'whatsnew': ("What's new in v0.3.0", 'Nouveautés de la v0.3.0'), 'toc': ('Contents', 'Sommaire'), 'start': ('Getting started', 'Prise en main'), 'aliases': ('Aliases and index', 'Alias et index')}
     for c, p in zip(order, pdfs):
         r = PdfReader(p)
         for pg in r.pages: w.add_page(pg)
