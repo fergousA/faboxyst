@@ -5,7 +5,7 @@
 #book-cover(
   title: [Faboxyst],
   subtitle: [Showcase],
-  author: [Arena.ai],
+  author: [FERGOUS Abdelhak],
   year: [2026],
   publisher: [Typst 0.15.1],
   style: "guilloche",
