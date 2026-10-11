@@ -322,6 +322,12 @@
 ///   fold               true draws the turned-up corner of a sticky note
 ///   watermark          faint text behind the body
 ///   halo               a soft glow round the frame
+///   finish              none | "wet" | "joint" — a smooth water-glass sheen
+///                      or a raised sealing bead around a plain closed frame
+///   finish-colour       material colour; auto = the frame colour
+///   finish-highlight    specular colour; auto = white
+///   finish-shadow-colour  seam/shade colour; auto = a darkened frame colour
+///   finish-depth        thickness and inset of the finish, in cm (default 0.08)
 ///   border             none | "zigzag" | "wave" | "caution" — a decorated
 ///                      edge. "caution" is mdframed's hazard tape: slanted
 ///                      stripes marching round the frame.
@@ -433,6 +439,11 @@
   tape-period: 0.10,
   tape-colours: (rgb("#FFDD00"), black),
   vignette: none,         // e.g. 0.08 — a raised bevel inside the frame
+  finish: none,           // none | "wet" (glassy rim) | "joint" (raised bead)
+  finish-colour: auto,    // material tint; auto = the frame colour
+  finish-highlight: auto, // specular tint; auto = white
+  finish-shadow-colour: auto, // seam shade; auto = a darkened frame colour
+  finish-depth: 0.08,     // rim/bead thickness and inset, in cm
   rough: auto,           // auto = follow the theme (hand-drawn when it sets `roughness` > 0)
   roughness: 1.0,
   bowing: 0.6,
@@ -463,9 +474,25 @@
   let rtl = is-rtl()
   if leading != auto { set par(leading: leading) }
   let print-mode = theme-state.get().mode == "print"
+  assert(finish == none or finish == "wet" or finish == "joint",
+    message: "fabox: finish must be none, wet or joint.")
+  assert(finish == none or sweep == none,
+    message: "fabox: wet/joint finish is not available with the open sweep frame.")
+  assert(finish == none or not fold,
+    message: "fabox: wet/joint finish is not available with a folded corner.")
+  let finish-depth-cm = if finish == none { 0.0 } else { _cm(finish-depth) }
+  assert(finish == none or finish-depth-cm > 0,
+    message: "fabox: finish-depth must be greater than zero.")
   let colour = if print-mode { white } else { colour }
   let fr = if print-mode { black }
     else if frame == auto { colour } else { frame }
+  let finish-paint = if finish-colour == auto {
+    if finish == "joint" { fr.lighten(22%) } else { fr }
+  } else if print-mode { grayscale-paint(finish-colour) } else { finish-colour }
+  let finish-highlight-paint = if finish-highlight == auto { white }
+    else if print-mode { grayscale-paint(finish-highlight) } else { finish-highlight }
+  let finish-shadow-paint = if finish-shadow-colour == auto { fr.darken(55%) }
+    else if print-mode { grayscale-paint(finish-shadow-colour) } else { finish-shadow-colour }
   let bk = if print-mode { white }
     else if back == auto { colour.lighten(92%) } else { back }
   let tb = if print-mode { white }
@@ -508,9 +535,11 @@
     let tape = if border == "caution" { _cm(tape-width) } else { 0.0 }
     let ins = _cm(inset) + tape / 2
     let tins = _cm(title-inset) + tape / 2
-    // Half the frame line, plus half the band, so the frame itself is inset
-    // far enough for the tape's outer half to stay on the page.
-    let m = _cm(weight) / 2 + 0.02 + tape / 2
+    // Half the frame line, plus half the caution band and the extra room
+    // needed by a raised wet/joint finish, so none of its rim is clipped.
+    let finish-room = if finish == none { 0.0 }
+      else { finish-depth-cm * 0.60 + _cm(weight) / 2 }
+    let m = _cm(weight) / 2 + 0.02 + tape / 2 + finish-room
     // --- the upright "spine" tab, measured before the width ---------------
     // It hangs off the leading edge, so the frame has to give up that much
     // room or the bar is drawn past the box and lands on the margin.
@@ -1037,6 +1066,17 @@
         place(top + left, md-region((outline,), flip: flip, fill: bk))
       }
 
+      // The water-glass finish lays a soft reflected wash over the face,
+      // underneath the watermark and all lettering. It stays independent of
+      // `gradient-to`, so callers can keep their own body gradient too.
+      if finish == "wet" {
+        let sheen = gradient.linear(
+          finish-highlight-paint.transparentize(68%),
+          finish-highlight-paint.transparentize(100%),
+          angle: 90deg,
+        )
+        place(top + left, md-region((outline,), flip: flip, fill: sheen))
+      }
 
       // --- watermark, behind the text -------------------------------------
       if watermark != none {
@@ -1833,6 +1873,85 @@
             mode: if sunk { "sunken" } else { "raised" },
             radius: radius * 1cm + bw, depth: 8pt,
             strength: if sunk { 0.75 } else { 0.62 }))
+      }
+
+      // --- material finish: water-glass rim or a raised gasket bead -------
+      // Both finishes follow the same closed frame path. They are deliberately
+      // smooth, even when the box's ordinary ink is hand-drawn: specular light
+      // and a sealing bead read best as controlled, continuous edges.
+      if finish != none {
+        let fd = finish-depth-cm
+        let outer = _rect-corners(
+          (mL - fd * 0.34, fy0 - fd * 0.34),
+          (W - mR + fd * 0.34, fy1 + fd * 0.34),
+          radius + fd * 0.34, sharp: sharp)
+        let inner = _rect-corners(
+          (mL + fd * 0.38, fy0 + fd * 0.38),
+          (W - mR - fd * 0.38, fy1 - fd * 0.38),
+          calc.max(radius - fd * 0.38, 0.02), sharp: sharp)
+        let ring(path, paint, thickness) = md-polylines(
+          (path + (path.first(),),), flip: flip,
+          stroke: (paint: paint, thickness: thickness,
+            join: "round", cap: "round"))
+        let line(path, paint, thickness) = md-polylines(
+          (path,), flip: flip,
+          stroke: (paint: paint, thickness: thickness,
+            join: "round", cap: "round"))
+        let edge-width = calc.max(fd * 0.42 * 1cm, 1.0pt)
+        let bead-width = calc.max(fd * 0.88 * 1cm, 2.4pt)
+        let span = calc.max(W - mL - mR - 2 * radius, 0.1)
+        let gleam = calc.min(span * 0.55, 2.8)
+        let top-y = fy1 - fd * 0.30
+        let left-x = mL + fd * 0.30
+        let bottom-y = fy0 + fd * 0.30
+        let right-x = W - mR - fd * 0.30
+        let top-start = mL + radius + fd * 0.20
+        let bottom-end = W - mR - radius - fd * 0.20
+        let left-start = fy0 + radius + fd * 0.20
+        let left-end = fy1 - radius - fd * 0.20
+        let top-glint = ((top-start, top-y),
+          (calc.min(top-start + gleam, bottom-end), top-y))
+        let left-glint = ((left-x, left-start),
+          (left-x, calc.min(left-start + gleam, left-end)))
+        let bottom-glint = ((calc.max(mL + radius + fd * 0.20,
+            bottom-end - gleam), bottom-y), (bottom-end, bottom-y))
+        let right-glint = ((right-x, left-start),
+          (right-x, calc.min(left-start + gleam, left-end)))
+
+        if finish == "wet" {
+          // Dark glass edge, a clear inner rim, and two broken reflections
+          // catch the light from the upper-left without drawing over text.
+          place(top + left, ring(outer,
+            finish-shadow-paint.transparentize(58%), 2.2pt))
+          place(top + left, ring(outline,
+            finish-paint.darken(34%), calc.max(fd * 1.12 * 1cm, 3.0pt)))
+          place(top + left, ring(inner,
+            finish-highlight-paint.transparentize(20%), edge-width))
+          place(top + left, line(top-glint,
+            finish-highlight-paint.transparentize(6%), 1.7pt))
+          place(top + left, line(left-glint,
+            finish-highlight-paint.transparentize(12%), 1.5pt))
+          place(top + left, line(bottom-glint,
+            finish-shadow-paint.transparentize(28%), 1.2pt))
+          place(top + left, line(right-glint,
+            finish-shadow-paint.transparentize(36%), 1.2pt))
+        } else {
+          // Raised cordon: a soft cast shadow, a rounded material bead,
+          // then a narrow inner seam and a specular line on the lit edges.
+          place(top + left, ring(outer,
+            finish-shadow-paint.transparentize(42%), 1.8pt))
+          place(top + left, ring(outline, finish-paint, bead-width))
+          place(top + left, ring(inner,
+            finish-shadow-paint.transparentize(28%), 0.9pt))
+          place(top + left, line(top-glint,
+            finish-highlight-paint.transparentize(12%), 1.4pt))
+          place(top + left, line(left-glint,
+            finish-highlight-paint.transparentize(20%), 1.2pt))
+          place(top + left, line(bottom-glint,
+            finish-shadow-paint.transparentize(22%), 1.0pt))
+          place(top + left, line(right-glint,
+            finish-shadow-paint.transparentize(30%), 1.0pt))
+        }
       }
 
     })

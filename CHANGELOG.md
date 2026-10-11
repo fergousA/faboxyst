@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased — fabox material finishes
+
+- Added `fabox(finish: "wet")`: translucent face wash, glossy dark rim, upper-left
+  specular streaks and lower-right seam; kept independent from the existing drop shadow.
+- Added `fabox(finish: "joint")`: raised sealing bead with cast shadow, inner groove
+  and directional highlights.
+- Added material tint, highlight/shadow colours and `finish-depth` controls, with
+  monochrome print conversion; documented and covered both finishes in tests.
+  The finish is intentionally unavailable with `sweep` or a folded corner.
+
 ## 0.3.0 — pure-Typst engine, nibart, page frames moved to nibframe
 
 - **`parchemin` / `lettre`: right-to-left text is now right-aligned.** New

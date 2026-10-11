@@ -129,6 +129,33 @@ and `rough: true` / `rough: false` on a box (or in the theme) always wins.
 Note that a `show: faboxyst.with(...)` changes the theme for the rest of the document.
 `sketch-box` reads the theme's `roughness` directly (it is always hand-drawn).
 
+## Material finishes for `fabox`
+
+The main box now has two optional surface finishes, both disabled by default:
+
+- `finish: "wet"` gives a water-glass look: a faint translucent wash, a dark rim,
+  white specular streaks and a subtle lower-right seam.
+- `finish: "joint"` draws a raised sealing bead with a soft cast shadow, inner
+  groove and light-facing highlight.
+
+They affect plain closed frames and leave the body shadow independently configurable.
+`finish-colour` tints the material (`auto` follows the frame; the joint defaults
+slightly lighter), `finish-highlight` and `finish-shadow-colour` customize the
+light and seam, and `finish-depth` adjusts rim/bead thickness in centimetres.
+The smooth specular strokes stay crisp even if the box uses the hand-drawn mode.
+These finishes are not combined with the open `sweep` frame or the folded-corner `fold` style.
+
+```typst
+#fabox(title: [Water glass], finish: "wet", shadow: "plain")[A glossy box.]
+#fabox(
+  title: [Joint bead], finish: "joint",
+  finish-colour: rgb("#9CB5C2"), finish-depth: 0.10,
+)[A raised sealing cord.]
+```
+
+Side-by-side render: [`examples/fabox-finishes.typ`](examples/fabox-finishes.typ).
+Regression coverage, including monochrome print: [`tests/test-fabox-finishes.typ`](tests/test-fabox-finishes.typ).
+
 ## Post-it
 
 `postit` draws its lifted shadow and inset rule inside the sheet (`shadow-inside: true`,
