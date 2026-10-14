@@ -893,7 +893,7 @@
     book-cover(
       title: [Showcase],
       subtitle: [Faboxyst],
-      author: [Arena],
+      author: [FERGOUS Abdelhak],
       year: [2026],
       style: "guilloche",
     )))

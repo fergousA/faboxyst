@@ -8,7 +8,7 @@
   style: "guilloche",
   title: [مدخل إلى الرياضيات],
   subtitle: [Introduction aux mathématiques],
-  author: [ليلى بن صالح],
+  author: [FERGOUS Abdelhak],
   author-label: [تأليف],
   series: [سلسلة المعارف],
   level: [السنة الأولى],

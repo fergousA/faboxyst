@@ -7,6 +7,8 @@ infographics and full-page covers**, inspired by LaTeX's *tcolorbox*, with
 first-class **right-to-left (Arabic)** support. Version **0.3.0**, Typst **0.15.1+**.
 Manuals: [English](docs/faboxyst-0.3.0-manual-en.pdf) · [Français](docs/faboxyst-0.3.0-manual-fr.pdf)
 (every function with its full parameter table and a live example).
+Complete visual showcase: [46-page PDF](docs/faboxyst-0.3.0-showcase.pdf)
+([Typst source](showcase/main.typ)).
 
 ```typst
 #import "@preview/faboxyst:0.3.0": *
@@ -47,6 +49,7 @@ python3 docs/build-manual.py both   # needs pypdf; builds the manual chapter by 
 typst compile examples/quickstart.typ --root . --package-path ../../..
 typst compile examples/rtl-boxes.typ --root . --package-path ../../..
 typst compile examples/print-mode.typ --root . --package-path ../../..
+typst compile showcase/main.typ docs/faboxyst-0.3.0-showcase.pdf --root . --package-path ../../..
 ```
 
 The package depends on `@preview/cetz:0.5.2`, fetched by Typst when needed, and
@@ -103,6 +106,12 @@ For a release-by-release inventory, see [`CHANGELOG.md`](CHANGELOG.md).
 - **Full-page designs:** `book-cover`, `plate-page` / `planche`,
   `patent-page` / `brevet`, and `bound-page` (spiral binding). Full-page *frames* live in the
   companion package **nibframe** (see below).
+- **Nibart engraving:** [`examples/nibart-celestial-atlas.typ`](examples/nibart-celestial-atlas.typ)
+  is a one-page celestial bestiary built from real elliptical-nib strokes,
+  orbital engravings and constellations.
+- **A field guide to the impossible:** [`examples/archipel-des-ombres.typ`](examples/archipel-des-ombres.typ)
+  combines puzzle cards, twisted ribbons and a film strip in a hand-drawn
+  expedition report.
 - **Drawing utilities:** `halftone` / `trame`, `tikzpattern` / `motif-tikz`,
   `pgfornament`, `lace`, and the motif helpers exported from `lib.typ`.
 
